@@ -32,7 +32,7 @@ jobs:
             $COMPOSE_CMD up -d
             $COMPOSE_CMD exec -T pgsql sh -c 'pg_dump -U $POSTGRES_USER $POSTGRES_DB' > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
             find ~/backups -name 'backup-*.sql' -mtime +7 -delete
-            git fetch origin main && git checkout main && git reset --hard origin/main
+            git fetch origin main && git checkout ${{ github.sha }}
             $COMPOSE_CMD build --no-cache app
             $COMPOSE_CMD stop app nginx
             $COMPOSE_CMD rm -f app nginx
