@@ -1,12 +1,12 @@
 {
-    "mcpServers": {
-        "laravel-boost": {
-            "command": "wsl.exe",
-            "args": [
-                "/usr/bin/php8.4",
-                "/home/mrbig/WebProjects/trip-planner/artisan",
-                "boost:mcp"
-            ]
-        }
+  "mcpServers": {
+    "laravel-boost": {
+      "command": "wsl.exe",
+      "args": [
+        "bash",
+        "-lc",
+        "cd /home/mrbig/WebProjects/trip-planner && bash vendor/bin/sail exec -T laravel.test php artisan boost:mcp --quiet"
+      ]
     }
+  }
 }
