@@ -16,6 +16,12 @@
         <include>
             <directory>app</directory>
         </include>
+        <coverage>
+            <report>
+                <clover outputFile="build/coverage/clover.xml"/>
+                <text outputFile="php://stdout" showUncoveredFiles="true"/>
+            </report>
+        </coverage>
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
