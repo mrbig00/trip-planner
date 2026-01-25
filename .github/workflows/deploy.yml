@@ -23,11 +23,18 @@ jobs:
           script: |
             set -e
             mkdir -p ~/backups
-            cd ~/app && docker compose -f docker-compose.production.yaml up -d
-            cd ~/app && docker compose -f docker-compose.production.yaml exec -T pgsql sh -c 'pg_dump -U $POSTGRES_USER $POSTGRES_DB' > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
-            cd ~/app && git fetch origin main && git checkout main && git reset --hard origin/main
-            cd ~/app && docker compose -f docker-compose.production.yaml build --no-cache app
-            cd ~/app && docker compose -f docker-compose.production.yaml stop app nginx
-            vol=$$(docker volume ls -q | grep app_code); [ -n "$$vol" ] && docker volume rm $$vol || true
-            cd ~/app && docker compose -f docker-compose.production.yaml up -d
-            cd ~/app && docker compose -f docker-compose.production.yaml exec -T app php artisan migrate --force
+            if [ ! -d ~/app/.git ]; then
+              git clone https://github.com/${{ github.repository }}.git ~/app
+            fi
+            cd ~/app
+            COMPOSE_CMD="docker compose -f docker-compose.production.yaml"
+            $COMPOSE_CMD up -d
+            $COMPOSE_CMD exec -T pgsql sh -c 'pg_dump -U $POSTGRES_USER $POSTGRES_DB' > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
+            find ~/backups -name 'backup-*.sql' -mtime +7 -delete
+            git fetch origin main && git checkout main && git reset --hard origin/main
+            $COMPOSE_CMD build --no-cache app
+            $COMPOSE_CMD stop app nginx
+            vol=$$(docker volume ls -q --filter name=app_app_code)
+            [ -n "$$vol" ] && docker volume rm $$vol || true
+            $COMPOSE_CMD up -d
+            $COMPOSE_CMD exec -T app php artisan migrate --force
