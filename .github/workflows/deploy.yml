@@ -20,10 +20,14 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
           script: |
             set -e
             mkdir -p ~/backups
+            cd ~/app && docker compose -f docker-compose.production.yaml up -d
             cd ~/app && docker compose -f docker-compose.production.yaml exec -T pgsql sh -c 'pg_dump -U $POSTGRES_USER $POSTGRES_DB' > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
             cd ~/app && git fetch origin main && git checkout main && git reset --hard origin/main
+            cd ~/app && docker compose -f docker-compose.production.yaml build --no-cache app
+            cd ~/app && docker compose -f docker-compose.production.yaml stop app nginx
+            vol=$$(docker volume ls -q | grep app_code); [ -n "$$vol" ] && docker volume rm $$vol || true
+            cd ~/app && docker compose -f docker-compose.production.yaml up -d
             cd ~/app && docker compose -f docker-compose.production.yaml exec -T app php artisan migrate --force
