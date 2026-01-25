@@ -34,7 +34,7 @@ jobs:
             git fetch origin main && git checkout main && git reset --hard origin/main
             $COMPOSE_CMD build --no-cache app
             $COMPOSE_CMD stop app nginx
-            vol=$$(docker volume ls -q --filter name=app_app_code)
-            [ -n "$$vol" ] && docker volume rm $$vol || true
+            vol=$(docker volume ls -q --filter name=app_app_code)
+            [ -n "$vol" ] && docker volume rm "$vol" || true
             $COMPOSE_CMD up -d
             $COMPOSE_CMD exec -T app php artisan migrate --force
