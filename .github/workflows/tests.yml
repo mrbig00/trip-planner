@@ -51,4 +51,13 @@ jobs:
         run: npm run build
 
       - name: Run Tests
-        run: ./vendor/bin/pest
+        run: |
+          mkdir -p build/coverage
+          ./vendor/bin/pest --coverage --coverage-clover=build/coverage/clover.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage/clover.xml
+          retention-days: 7
