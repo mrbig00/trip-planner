@@ -15,9 +15,9 @@ test('a location can be created', function () {
     ]);
 
     expect($location->name)->toBe('Paris');
-    expect($location->price)->toBe(150.50);
-    expect($location->latitude)->toBe(48.8566);
-    expect($location->longitude)->toBe(2.3522);
+    expect($location->price)->toEqual(150.50);
+    expect($location->latitude)->toEqual(48.8566);
+    expect($location->longitude)->toEqual(2.3522);
     expect($location->accepted)->toBeTrue();
 });
 

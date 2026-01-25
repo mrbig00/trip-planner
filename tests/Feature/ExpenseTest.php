@@ -13,7 +13,7 @@ test('an expense can be created', function () {
     ]);
 
     expect($expense->name)->toBe('Hotel Room');
-    expect($expense->unit_price)->toBe(100.00);
+    expect($expense->unit_price)->toEqual(100.00);
     expect($expense->quantity)->toBe(3);
 });
 
@@ -33,7 +33,7 @@ test('an expense calculates total correctly', function () {
         'quantity' => 4,
     ]);
 
-    expect($expense->total)->toBe(200.00);
+    expect($expense->total)->toEqual(200.00);
 });
 
 test('an expense defaults to quantity of 1', function () {
