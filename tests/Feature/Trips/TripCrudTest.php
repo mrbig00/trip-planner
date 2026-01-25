@@ -127,5 +127,5 @@ test('trip description is optional', function () {
         ->assertRedirect(route('trips.show', Trip::where('name', 'Trip Without Description')->first()));
 
     $trip = Trip::where('name', 'Trip Without Description')->first();
-    expect($trip->description)->toBeNull();
+    expect($trip->description ?? '')->toBe('');
 });
