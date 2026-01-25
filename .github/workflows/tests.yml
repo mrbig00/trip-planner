@@ -61,3 +61,20 @@ jobs:
           name: coverage-report
           path: build/coverage/clover.xml
           retention-days: 7
+
+      - name: Code Coverage Summary Report
+        uses: saschanowak/CloverCodeCoverageSummary@1.1.1
+        with:
+          filename: build/coverage/clover.xml
+
+      - name: Add Code Coverage to Job Summary
+        run: |
+          cat code-coverage-summary.md >> $GITHUB_STEP_SUMMARY
+          cat code-coverage-details.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Add Code Coverage Summary as PR Comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-summary.md
