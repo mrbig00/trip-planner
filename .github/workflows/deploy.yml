@@ -25,10 +25,10 @@ jobs:
             set -e
             mkdir -p ~/backups
             if [ ! -d ~/app/.git ]; then
-              git clone https://github.com/${{ github.repository }}.git ~/app
+              git clone --branch main https://github.com/${{ github.repository }}.git ~/app
             fi
             cd ~/app
-            COMPOSE_CMD="docker compose -f docker-compose.production.yaml"
+            COMPOSE_CMD="docker compose -p app -f docker-compose.production.yaml"
             $COMPOSE_CMD up -d
             $COMPOSE_CMD exec -T pgsql sh -c 'pg_dump -U $POSTGRES_USER $POSTGRES_DB' > ~/backups/backup-$(date +%Y%m%d-%H%M%S).sql
             find ~/backups -name 'backup-*.sql' -mtime +7 -delete
