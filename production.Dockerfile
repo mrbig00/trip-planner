@@ -18,12 +18,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 WORKDIR /var/www/html
 
 COPY composer.json composer.lock ./
-# Composer auth (e.g. Flux): in CI pass secret id=composer_auth; locally use empty {} or mount auth
-RUN --mount=type=secret,id=composer_auth,required=false \
-    sh -c 'if [ -f /run/secrets/composer_auth ]; then cp /run/secrets/composer_auth auth.json; else echo "{}" > auth.json; fi'
 RUN composer install --no-dev --no-interaction --optimize-autoloader --no-scripts \
-    && composer clear-cache \
-    && rm -f auth.json
+    && composer clear-cache
 
 COPY . .
 
