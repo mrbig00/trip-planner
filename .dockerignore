@@ -18,5 +18,7 @@ coverage
 docker-compose*.yaml
 compose.yaml
 Dockerfile
+production.Dockerfile
 .dockerignore
+composer-auth.json
 # keep docker/entrypoint.sh and docker/nginx/ for build/run
