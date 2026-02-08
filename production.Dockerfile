@@ -39,6 +39,9 @@ RUN if [ -f package.json ]; then \
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
+# Create storage link at build time (as root); autorun would fail as www-data (public/ owned by root)
+RUN php artisan storage:link
+
 USER www-data
 
 # FrankenPHP serves from /var/www/html/public by default (CADDY_SERVER_ROOT)
