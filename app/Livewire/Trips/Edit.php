@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Livewire\Trips;
 
 use App\Models\Trip;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 use Livewire\Component;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
 
 class Edit extends Component
 {
@@ -16,6 +16,10 @@ class Edit extends Component
     public string $name = '';
 
     public string $description = '';
+
+    public ?string $start_date = null;
+
+    public ?string $end_date = null;
 
     /**
      * Mount the component.
@@ -29,6 +33,8 @@ class Edit extends Component
         $this->trip = $trip;
         $this->name = $trip->name;
         $this->description = $trip->description ?? '';
+        $this->start_date = $trip->start_date?->toDateString();
+        $this->end_date = $trip->end_date?->toDateString();
     }
 
     /**
@@ -39,6 +45,8 @@ class Edit extends Component
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
         $this->trip->update($validated);

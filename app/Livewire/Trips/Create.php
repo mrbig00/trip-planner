@@ -15,6 +15,10 @@ class Create extends Component
 
     public string $description = '';
 
+    public ?string $start_date = null;
+
+    public ?string $end_date = null;
+
     /**
      * Create a new trip.
      */
@@ -23,6 +27,8 @@ class Create extends Component
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
         $trip = Trip::create([

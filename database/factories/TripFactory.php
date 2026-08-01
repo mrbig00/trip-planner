@@ -17,10 +17,14 @@ class TripFactory extends Factory
      */
     public function definition(): array
     {
+        $startDate = fake()->optional()->dateTimeBetween('-2 months', '+6 months');
+
         return [
             'user_id' => User::factory(),
             'name' => fake()->sentence(3),
             'description' => fake()->paragraph(),
+            'start_date' => $startDate,
+            'end_date' => $startDate ? fake()->dateTimeBetween($startDate, $startDate->modify('+2 weeks')) : null,
         ];
     }
 }
