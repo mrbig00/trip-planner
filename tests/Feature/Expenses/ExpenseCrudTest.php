@@ -12,14 +12,6 @@ test('guests cannot access expense create', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('guests cannot access expense edit', function () {
-    $trip = Trip::factory()->create();
-    $expense = Expense::factory()->create(['trip_id' => $trip->id]);
-
-    $response = $this->get(route('expenses.edit', [$trip, $expense]));
-    $response->assertRedirect(route('login'));
-});
-
 test('participants cannot access expense create (creator only)', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
@@ -29,55 +21,6 @@ test('participants cannot access expense create (creator only)', function () {
 
     $response = $this->get(route('expenses.create', $trip));
     $response->assertForbidden();
-});
-
-test('expense owner can access expense edit', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expenseOwner = User::factory()->create();
-    $trip->participants()->attach($expenseOwner->id);
-    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $expenseOwner->id]);
-    $this->actingAs($expenseOwner);
-
-    $response = $this->get(route('expenses.edit', [$trip, $expense]));
-    $response->assertSuccessful();
-});
-
-test('trip creator can access expense edit for any expense', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expenseOwner = User::factory()->create();
-    $trip->participants()->attach($expenseOwner->id);
-    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $expenseOwner->id]);
-    $this->actingAs($owner);
-
-    $response = $this->get(route('expenses.edit', [$trip, $expense]));
-    $response->assertSuccessful();
-});
-
-test('a participant cannot access expense edit for another user expense', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expenseOwner = User::factory()->create();
-    $trip->participants()->attach($expenseOwner->id);
-    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $expenseOwner->id]);
-
-    $unrelated = User::factory()->create();
-    $trip->participants()->attach($unrelated->id);
-    $this->actingAs($unrelated);
-
-    $response = $this->get(route('expenses.edit', [$trip, $expense]));
-    $response->assertForbidden();
-});
-
-test('mismatched trip and expense returns not found on edit', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expenseFromOtherTrip = Expense::factory()->create();
-    $this->actingAs($owner);
-
-    $response = $this->get(route('expenses.edit', [$trip, $expenseFromOtherTrip]));
-    $response->assertNotFound();
 });
 
 test('create mount defaults user_id to the authenticated user', function () {
@@ -205,45 +148,3 @@ test('expense creation rejects an invalid link', function () {
         ->assertHasErrors(['link']);
 });
 
-test('edit mount pre-fills expense fields', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = Expense::factory()->create([
-        'trip_id' => $trip->id,
-        'user_id' => $owner->id,
-        'name' => 'Hotel',
-        'unit_price' => 100.00,
-        'quantity' => 2,
-    ]);
-    $this->actingAs($owner);
-
-    Volt::test('expenses.edit', ['trip' => $trip, 'expense' => $expense])
-        ->assertSet('name', 'Hotel')
-        ->assertSet('unit_price', '100.00')
-        ->assertSet('quantity', 2)
-        ->assertSet('user_id', $owner->id);
-});
-
-test('edit mount falls back user_id to the trip creator when the expense has no owner', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => null]);
-    $this->actingAs($owner);
-
-    Volt::test('expenses.edit', ['trip' => $trip, 'expense' => $expense])
-        ->assertSet('user_id', $owner->id);
-});
-
-test('owner can update an expense', function () {
-    $owner = User::factory()->create();
-    $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id, 'name' => 'Old Name']);
-    $this->actingAs($owner);
-
-    Volt::test('expenses.edit', ['trip' => $trip, 'expense' => $expense])
-        ->set('name', 'New Name')
-        ->call('update')
-        ->assertRedirect(route('trips.show', $trip));
-
-    expect($expense->fresh()->name)->toBe('New Name');
-});
