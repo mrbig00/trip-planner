@@ -55,15 +55,9 @@
             <flux:separator class="flex-1" />
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row">
-            <flux:button :href="route('socialite.redirect', 'google')" variant="outline" class="w-full" icon="google" data-test="login-with-google-button">
-                {{ __('Continue with Google') }}
-            </flux:button>
-
-            <flux:button :href="route('socialite.redirect', 'facebook')" variant="outline" class="w-full" icon="facebook" data-test="login-with-facebook-button">
-                {{ __('Continue with Facebook') }}
-            </flux:button>
-        </div>
+        <flux:button :href="route('socialite.redirect', 'google')" variant="outline" class="w-full" icon="google" data-test="login-with-google-button">
+            {{ __('Continue with Google') }}
+        </flux:button>
 
         @if (Route::has('register'))
             <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-600 dark:text-zinc-400">

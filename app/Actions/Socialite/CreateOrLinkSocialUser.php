@@ -80,8 +80,6 @@ class CreateOrLinkSocialUser
         return match ($provider) {
             // Google's OpenID Connect userinfo response includes `email_verified`.
             'google' => (bool) ($socialiteUser->getRaw()['email_verified'] ?? false),
-            // Facebook only grants the "email" permission for addresses it has already verified.
-            'facebook' => true,
             default => false,
         };
     }
