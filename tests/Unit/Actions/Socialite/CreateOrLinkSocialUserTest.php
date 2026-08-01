@@ -68,15 +68,6 @@ test('marks a new google user verified only when the provider confirms the email
         ->and($unverified->email_verified_at)->toBeNull();
 });
 
-test('always marks a new facebook user verified', function () {
-    $user = (new CreateOrLinkSocialUser)->handle('facebook', SocialiteUser::fake([
-        'id' => 'id-facebook',
-        'email' => 'facebook-user@example.com',
-    ]));
-
-    expect($user->email_verified_at)->not->toBeNull();
-});
-
 test('returns the existing user without creating a duplicate for a repeat call', function () {
     $socialiteUser = SocialiteUser::fake([
         'id' => 'id-3',

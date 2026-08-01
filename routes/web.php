@@ -14,11 +14,11 @@ Route::view('dashboard', 'dashboard')
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/{provider}/redirect', [SocialiteController::class, 'redirect'])
-        ->whereIn('provider', ['google', 'facebook'])
+        ->whereIn('provider', ['google'])
         ->name('socialite.redirect');
 
     Route::get('auth/{provider}/callback', [SocialiteController::class, 'callback'])
-        ->whereIn('provider', ['google', 'facebook'])
+        ->whereIn('provider', ['google'])
         ->name('socialite.callback');
 });
 
