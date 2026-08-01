@@ -34,6 +34,13 @@
             </flux:sidebar.nav>
 
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->fullName()" />
+
+            <flux:text size="sm" class="hidden justify-center text-center text-zinc-400 lg:flex dark:text-zinc-500">
+                v{{ \App\Support\AppVersion::version() }}
+                @if ($commit = \App\Support\AppVersion::commit())
+                    &middot; {{ $commit }}
+                @endif
+            </flux:text>
         </flux:sidebar>
 
 

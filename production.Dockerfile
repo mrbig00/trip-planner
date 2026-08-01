@@ -1,6 +1,12 @@
 # Production Laravel image using FrankenPHP (single process: Caddy + PHP)
 FROM serversideup/php:8.5-frankenphp
 
+ARG APP_VERSION
+ENV APP_VERSION=${APP_VERSION}
+
+ARG APP_COMMIT
+ENV APP_COMMIT=${APP_COMMIT}
+
 USER root
 
 # Install PHP extensions required by Laravel (PostgreSQL, zip, bcmath)
