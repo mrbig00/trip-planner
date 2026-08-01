@@ -97,4 +97,12 @@ class User extends Authenticatable
         return $this->belongsToMany(\App\Models\Location::class, 'location_user')
             ->withTimestamps();
     }
+
+    /**
+     * Get the social providers linked to the user.
+     */
+    public function providers(): HasMany
+    {
+        return $this->hasMany(UserProvider::class);
+    }
 }
