@@ -20,7 +20,7 @@ test('a location comment belongs to a user', function () {
     expect($comment->user->id)->toBe($user->id);
 });
 
-test('a location persists its comment content', function () {
+test('a location comment persists its content', function () {
     $comment = LocationComment::factory()->create(['content' => 'Great spot!']);
 
     expect($comment->fresh()->content)->toBe('Great spot!');

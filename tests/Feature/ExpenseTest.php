@@ -2,6 +2,7 @@
 
 use App\Models\Expense;
 use App\Models\Trip;
+use App\Models\User;
 
 test('an expense can be created', function () {
     $trip = Trip::factory()->create();
@@ -48,13 +49,13 @@ test('an expense defaults to quantity of 1', function () {
 
 test('an expense belongs to its owner', function () {
     $trip = Trip::factory()->create();
-    $owner = \App\Models\User::factory()->create();
+    $owner = User::factory()->create();
     $expense = Expense::factory()->create([
         'trip_id' => $trip->id,
         'user_id' => $owner->id,
     ]);
 
-    expect($expense->owner)->toBeInstanceOf(\App\Models\User::class);
+    expect($expense->owner)->toBeInstanceOf(User::class);
     expect($expense->owner->id)->toBe($owner->id);
 });
 

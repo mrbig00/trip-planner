@@ -55,7 +55,7 @@ test('trip creator can access expense edit for any expense', function () {
     $response->assertSuccessful();
 });
 
-test('unrelated participant cannot access expense edit', function () {
+test('a participant cannot access expense edit for another user expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     $expenseOwner = User::factory()->create();

@@ -61,9 +61,7 @@ class Show extends Component
      */
     public function delete(): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $this->trip->delete();
 
@@ -89,9 +87,7 @@ class Show extends Component
      */
     public function deleteLocation(int $locationId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $location = $this->trip->locations()->findOrFail($locationId);
         $location->delete();
@@ -173,9 +169,7 @@ class Show extends Component
      */
     public function addParticipant(int $userId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $user = User::findOrFail($userId);
 
@@ -195,9 +189,7 @@ class Show extends Component
      */
     public function removeParticipant(int $userId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $this->trip->participants()->detach($userId);
 
@@ -385,6 +377,16 @@ class Show extends Component
 
         $this->cancelEditingExpense();
         $this->trip->refresh();
+    }
+
+    /**
+     * Abort with a 403 unless the current user is the trip creator.
+     */
+    private function ensureIsCreator(): void
+    {
+        if ($this->trip->user_id !== Auth::id()) {
+            abort(403);
+        }
     }
 
     /**

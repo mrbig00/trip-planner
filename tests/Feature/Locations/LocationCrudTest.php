@@ -39,6 +39,29 @@ test('non-owners cannot access location edit', function () {
     $response->assertForbidden();
 });
 
+test('participants cannot access location create (creator only)', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($participant);
+
+    $response = $this->get(route('locations.create', $trip));
+    $response->assertForbidden();
+});
+
+test('participants cannot access location edit (creator only)', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $location = Location::factory()->create(['trip_id' => $trip->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($participant);
+
+    $response = $this->get(route('locations.edit', [$trip, $location]));
+    $response->assertForbidden();
+});
+
 test('mismatched trip and location returns not found on edit', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);

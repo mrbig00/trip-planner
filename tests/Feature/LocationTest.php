@@ -2,6 +2,7 @@
 
 use App\Models\Location;
 use App\Models\Trip;
+use App\Models\User;
 
 test('a location can be created', function () {
     $trip = Trip::factory()->create();
@@ -82,7 +83,7 @@ test('accepting a location does not affect locations in other trips', function (
 
 test('toggleVote attaches a vote on first call and detaches on second', function () {
     $location = Location::factory()->create();
-    $user = \App\Models\User::factory()->create();
+    $user = User::factory()->create();
 
     $attached = $location->toggleVote($user);
     expect($attached)->toBeTrue();
@@ -95,8 +96,8 @@ test('toggleVote attaches a vote on first call and detaches on second', function
 
 test('hasVoteFrom reports whether the given user has voted', function () {
     $location = Location::factory()->create();
-    $voter = \App\Models\User::factory()->create();
-    $nonVoter = \App\Models\User::factory()->create();
+    $voter = User::factory()->create();
+    $nonVoter = User::factory()->create();
 
     $location->votes()->attach($voter->id);
 
@@ -106,7 +107,7 @@ test('hasVoteFrom reports whether the given user has voted', function () {
 
 test('votes returns the users who voted for the location', function () {
     $location = Location::factory()->create();
-    $voter = \App\Models\User::factory()->create();
+    $voter = User::factory()->create();
 
     $location->votes()->attach($voter->id);
 

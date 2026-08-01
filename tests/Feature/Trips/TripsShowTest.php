@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Expense;
 use App\Models\Location;
 use App\Models\LocationComment;
 use App\Models\Trip;
@@ -410,32 +411,32 @@ test('toggleLocationComments expands then collapses', function () {
 test('expense owner can delete their expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
         ->call('deleteExpense', $expense->id);
 
-    expect(\App\Models\Expense::find($expense->id))->toBeNull();
+    expect(Expense::find($expense->id))->toBeNull();
 });
 
 test('unrelated user cannot delete an expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
     $this->actingAs(User::factory()->create());
 
     Volt::test('trips.show', ['trip' => $trip])
         ->call('deleteExpense', $expense->id)
         ->assertForbidden();
 
-    expect(\App\Models\Expense::find($expense->id))->not->toBeNull();
+    expect(Expense::find($expense->id))->not->toBeNull();
 });
 
 test('startEditingExpense populates fields and cancelEditingExpense clears them', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create([
+    $expense = Expense::factory()->create([
         'trip_id' => $trip->id,
         'user_id' => $owner->id,
         'name' => 'Hotel',
@@ -457,7 +458,7 @@ test('startEditingExpense populates fields and cancelEditingExpense clears them'
 test('startEditingExpense falls back user_id to the trip creator when the expense has no owner', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => null]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => null]);
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
@@ -468,7 +469,7 @@ test('startEditingExpense falls back user_id to the trip creator when the expens
 test('unrelated user cannot start editing an expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
     $this->actingAs(User::factory()->create());
 
     Volt::test('trips.show', ['trip' => $trip])
@@ -479,7 +480,7 @@ test('unrelated user cannot start editing an expense', function () {
 test('owner can save an edited expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create([
+    $expense = Expense::factory()->create([
         'trip_id' => $trip->id,
         'user_id' => $owner->id,
         'name' => 'Old Name',
@@ -500,7 +501,7 @@ test('owner can save an edited expense', function () {
 test('unrelated user cannot save an edited expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id, 'name' => 'Old Name']);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id, 'name' => 'Old Name']);
     $this->actingAs(User::factory()->create());
 
     Volt::test('trips.show', ['trip' => $trip])
@@ -513,7 +514,7 @@ test('unrelated user cannot save an edited expense', function () {
 test('saveExpense validates the same rules as the expense form', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
-    $expense = \App\Models\Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
     $unaffiliated = User::factory()->create();
     $this->actingAs($owner);
 

@@ -10,13 +10,10 @@ test('trips search filters by partial name match', function () {
     $nonMatching = Trip::factory()->create(['user_id' => $user->id, 'name' => 'Winter in Oslo']);
     $this->actingAs($user);
 
-    $component = Volt::test('trips.index')
-        ->set('search', 'Paris');
-
-    $trips = $component->instance()->trips();
-
-    expect($trips->pluck('id'))->toContain($matching->id);
-    expect($trips->pluck('id'))->not->toContain($nonMatching->id);
+    Volt::test('trips.index')
+        ->set('search', 'Paris')
+        ->assertSee('Summer in Paris')
+        ->assertDontSee('Winter in Oslo');
 });
 
 test('owner can delete a trip from the index', function () {
