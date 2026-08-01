@@ -52,7 +52,7 @@
                     <div class="flex size-10 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
                         <flux:icon name="map-pin" class="size-5" />
                     </div>
-                    <flux:text class="text-neutral-400">{{ __('Destinations Proposed') }}</flux:text>
+                    <flux:text class="text-neutral-400">{{ __('Total Destinations') }}</flux:text>
                 </div>
                 <div class="mt-4 text-3xl font-semibold text-white">{{ $stats['acceptedDestinations'] + $stats['proposedDestinations'] }}</div>
             </div>
@@ -69,7 +69,14 @@
                     {{ $stats['acceptedDestinations'] }} / {{ $totalDestinations }} {{ __('accepted') }}
                 </flux:text>
             </div>
-            <div class="mt-4 h-3 w-full overflow-hidden rounded-full bg-blue-500/15">
+            <div
+                class="mt-4 h-3 w-full overflow-hidden rounded-full bg-blue-500/15"
+                role="progressbar"
+                aria-valuenow="{{ $acceptedShare }}"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-label="{{ __('Destinations accepted') }}"
+            >
                 <div class="h-full rounded-full bg-blue-500" style="width: {{ $acceptedShare }}%"></div>
             </div>
         </div>

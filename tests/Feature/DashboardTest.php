@@ -49,3 +49,56 @@ test('dashboard shows stats for trips the user created or participates in', func
                 && $stats['proposedDestinations'] === 1;
         });
 });
+
+test('dashboard only counts and lists trips with a future start date as upcoming', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    Trip::factory()->for($user, 'creator')->create(['name' => 'No Date', 'start_date' => null, 'end_date' => null]);
+    Trip::factory()->for($user, 'creator')->create(['name' => 'Past Trip', 'start_date' => now()->subDays(5), 'end_date' => now()->subDays(1)]);
+    $soonest = Trip::factory()->for($user, 'creator')->create(['name' => 'Soonest', 'start_date' => now(), 'end_date' => now()->addDays(2)]);
+    $later = Trip::factory()->for($user, 'creator')->create(['name' => 'Later', 'start_date' => now()->addDays(10), 'end_date' => now()->addDays(12)]);
+
+    Livewire::test(Dashboard::class)
+        ->assertViewHas('stats', fn (array $stats) => $stats['upcomingTrips'] === 2)
+        ->assertViewHas('upcomingTrips', function ($upcomingTrips) use ($soonest, $later) {
+            return $upcomingTrips->pluck('id')->all() === [$soonest->id, $later->id];
+        });
+});
+
+test('dashboard ranks trips by total spend and excludes trips with no expenses', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $bigSpend = Trip::factory()->for($user, 'creator')->create(['name' => 'Big Spend']);
+    Expense::factory()->for($bigSpend)->create(['unit_price' => 500, 'quantity' => 1]);
+
+    $smallSpend = Trip::factory()->for($user, 'creator')->create(['name' => 'Small Spend']);
+    Expense::factory()->for($smallSpend)->create(['unit_price' => 100, 'quantity' => 1]);
+
+    Trip::factory()->for($user, 'creator')->create(['name' => 'No Spend']);
+
+    Livewire::test(Dashboard::class)
+        ->assertViewHas('spendByTrip', function (array $spendByTrip) {
+            return $spendByTrip['labels'] === ['Big Spend', 'Small Spend']
+                && $spendByTrip['data'] === [500.0, 100.0];
+        });
+});
+
+test('dashboard buckets trips created per month over the last 12 months', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $recentTrip = Trip::factory()->for($user, 'creator')->create();
+
+    $olderTrip = Trip::factory()->for($user, 'creator')->create();
+    $olderTrip->created_at = now()->subMonths(2);
+    $olderTrip->save();
+
+    Livewire::test(Dashboard::class)
+        ->assertViewHas('tripsPerMonth', function (array $tripsPerMonth) {
+            return $tripsPerMonth['labels'][11] === now()->format('M Y')
+                && $tripsPerMonth['data'][11] === 1
+                && $tripsPerMonth['data'][9] === 1;
+        });
+});

@@ -6,9 +6,11 @@ namespace App\Livewire;
 
 use App\Models\Trip;
 use Livewire\Component;
-use Illuminate\View\View;
+use App\Models\Location;
 use Illuminate\Support\Carbon;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Collection;
 
 class Dashboard extends Component
 {
@@ -18,24 +20,25 @@ class Dashboard extends Component
     public function render(): View
     {
         $trips = $this->trips();
+        $locations = $this->locations($trips);
+        $upcomingTrips = $this->upcomingTrips($trips);
 
         return view('livewire.dashboard', [
             'title' => __('Dashboard'),
             'trips' => $trips,
-            'stats' => $this->stats($trips),
+            'stats' => $this->stats($trips, $locations, $upcomingTrips),
             'tripsPerMonth' => $this->tripsPerMonth($trips),
             'spendByTrip' => $this->spendByTrip($trips),
-            'destinationStatus' => $this->destinationStatus($trips),
-            'upcomingTrips' => $this->upcomingTrips($trips),
+            'upcomingTrips' => $upcomingTrips->take(5)->values(),
         ]);
     }
 
     /**
      * Get the trips the authenticated user created or participates in.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Trip>
+     * @return Collection<int, Trip>
      */
-    private function trips()
+    private function trips(): Collection
     {
         return Trip::query()
             ->where(function ($query) {
@@ -49,19 +52,45 @@ class Dashboard extends Component
     }
 
     /**
-     * Top-line stat tiles.
+     * All locations across the given trips.
      *
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Trip>  $trips
-     * @return array<string, mixed>
+     * @param  Collection<int, Trip>  $trips
+     * @return \Illuminate\Support\Collection<int, Location>
      */
-    private function stats($trips): array
+    private function locations(Collection $trips): \Illuminate\Support\Collection
+    {
+        return $trips->flatMap->locations;
+    }
+
+    /**
+     * Trips with a future start date, soonest first.
+     *
+     * @param  Collection<int, Trip>  $trips
+     * @return \Illuminate\Support\Collection<int, Trip>
+     */
+    private function upcomingTrips(Collection $trips): \Illuminate\Support\Collection
     {
         $today = Carbon::today();
-        $locations = $trips->flatMap->locations;
 
+        return $trips
+            ->filter(fn (Trip $trip) => $trip->start_date && $trip->start_date->greaterThanOrEqualTo($today))
+            ->sortBy('start_date')
+            ->values();
+    }
+
+    /**
+     * Top-line stat tiles.
+     *
+     * @param  Collection<int, Trip>  $trips
+     * @param  \Illuminate\Support\Collection<int, Location>  $locations
+     * @param  \Illuminate\Support\Collection<int, Trip>  $upcomingTrips
+     * @return array<string, mixed>
+     */
+    private function stats(Collection $trips, \Illuminate\Support\Collection $locations, \Illuminate\Support\Collection $upcomingTrips): array
+    {
         return [
             'totalTrips' => $trips->count(),
-            'upcomingTrips' => $trips->filter(fn (Trip $trip) => $trip->start_date && $trip->start_date->greaterThanOrEqualTo($today))->count(),
+            'upcomingTrips' => $upcomingTrips->count(),
             'totalSpend' => $trips->flatMap->expenses->sum('total'),
             'acceptedDestinations' => $locations->where('accepted', true)->count(),
             'proposedDestinations' => $locations->where('accepted', false)->count(),
@@ -71,10 +100,10 @@ class Dashboard extends Component
     /**
      * Number of trips created per month for the last 12 months.
      *
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Trip>  $trips
+     * @param  Collection<int, Trip>  $trips
      * @return array{labels: array<int, string>, data: array<int, int>}
      */
-    private function tripsPerMonth($trips): array
+    private function tripsPerMonth(Collection $trips): array
     {
         $months = collect(range(11, 0))->map(fn (int $offset) => Carbon::today()->subMonths($offset)->startOfMonth());
 
@@ -89,10 +118,10 @@ class Dashboard extends Component
     /**
      * Total spend for the trips with the highest expenses.
      *
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Trip>  $trips
+     * @param  Collection<int, Trip>  $trips
      * @return array{labels: array<int, string>, data: array<int, float>}
      */
-    private function spendByTrip($trips): array
+    private function spendByTrip(Collection $trips): array
     {
         $ranked = $trips
             ->map(fn (Trip $trip) => [
@@ -108,41 +137,5 @@ class Dashboard extends Component
             'labels' => $ranked->pluck('name')->all(),
             'data' => $ranked->pluck('total')->all(),
         ];
-    }
-
-    /**
-     * Accepted vs. still-undecided destinations across all trips.
-     *
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Trip>  $trips
-     * @return array{labels: array<int, string>, data: array<int, int>}
-     */
-    private function destinationStatus($trips): array
-    {
-        $locations = $trips->flatMap->locations;
-
-        return [
-            'labels' => [__('Accepted'), __('Proposed')],
-            'data' => [
-                $locations->where('accepted', true)->count(),
-                $locations->where('accepted', false)->count(),
-            ],
-        ];
-    }
-
-    /**
-     * Upcoming trips, soonest first.
-     *
-     * @param  \Illuminate\Database\Eloquent\Collection<int, Trip>  $trips
-     * @return \Illuminate\Support\Collection<int, Trip>
-     */
-    private function upcomingTrips($trips)
-    {
-        $today = Carbon::today();
-
-        return $trips
-            ->filter(fn (Trip $trip) => $trip->start_date && $trip->start_date->greaterThanOrEqualTo($today))
-            ->sortBy('start_date')
-            ->take(5)
-            ->values();
     }
 }
