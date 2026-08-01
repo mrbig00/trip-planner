@@ -1,0 +1,77 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  K8S_NAMESPACE: default
+
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit
+
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  build:
+    needs: [test, lint]
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Back up database
+        run: |
+          kubectl exec -n "$K8S_NAMESPACE" postgres-0 -- \
+            sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+            > backup-${{ github.sha }}.sql
+
+      - name: Upload database backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.sha }}
+          path: backup-${{ github.sha }}.sql
+          retention-days: 7
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -n "$K8S_NAMESPACE" -f kubernetes/app.yaml
+
+      - name: Deploy ${{ needs.build.outputs.image }}
+        id: set_image
+        run: kubectl set image -n "$K8S_NAMESPACE" deployment/trip-planner laravel=${{ needs.build.outputs.image }}
+
+      - name: Wait for rollout
+        id: rollout
+        run: kubectl rollout status -n "$K8S_NAMESPACE" deployment/trip-planner --timeout=180s
+
+      - name: Smoke test
+        run: curl -fsS --retry 5 --retry-delay 5 --retry-connrefused https://trip-planner.szanto-zoltan.com/up
+
+      - name: Roll back failed deploy
+        if: failure() && steps.set_image.outcome == 'success'
+        run: kubectl rollout undo -n "$K8S_NAMESPACE" deployment/trip-planner
