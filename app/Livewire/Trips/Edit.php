@@ -12,7 +12,9 @@ use Livewire\Component;
 class Edit extends Component
 {
     public Trip $trip;
+
     public string $name = '';
+
     public string $description = '';
 
     /**

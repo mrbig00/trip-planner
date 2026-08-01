@@ -46,7 +46,7 @@ class LocationVoteSeeder extends Seeder
 
                 foreach ($voters as $voter) {
                     // Check if user already voted for this location
-                    if (!$location->votes()->where('user_id', $voter->id)->exists()) {
+                    if (! $location->votes()->where('user_id', $voter->id)->exists()) {
                         $location->votes()->attach($voter->id);
                         $totalVotes++;
                     }

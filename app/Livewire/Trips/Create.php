@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace App\Livewire\Trips;
 
 use App\Models\Trip;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 use Livewire\Component;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
 
 class Create extends Component
 {
     public string $name = '';
+
     public string $description = '';
 
     /**
