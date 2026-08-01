@@ -70,6 +70,22 @@
             </div>
         </form>
 
+        <div class="flex items-center gap-3">
+            <flux:separator class="flex-1" />
+            <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Or continue with') }}</span>
+            <flux:separator class="flex-1" />
+        </div>
+
+        <div class="flex flex-col gap-3 sm:flex-row">
+            <flux:button :href="route('socialite.redirect', 'google')" variant="outline" class="w-full" icon="google" data-test="register-with-google-button">
+                {{ __('Continue with Google') }}
+            </flux:button>
+
+            <flux:button :href="route('socialite.redirect', 'facebook')" variant="outline" class="w-full" icon="facebook" data-test="register-with-facebook-button">
+                {{ __('Continue with Facebook') }}
+            </flux:button>
+        </div>
+
         <div class="space-x-1 rtl:space-x-reverse text-center text-sm text-zinc-600 dark:text-zinc-400">
             <span>{{ __('Already have an account?') }}</span>
             <flux:link :href="route('login')" wire:navigate>{{ __('Log in') }}</flux:link>

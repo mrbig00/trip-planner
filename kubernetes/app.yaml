@@ -22,6 +22,15 @@ type: Opaque
 stringData:
   APP_KEY: base64:k7JmN2pQ4rT6vX9zA1bC3dE5fG7hI0jL2nO4qR8sU6wY=
 ---
+# trip-planner-google-secret is intentionally not defined here so the real
+# credentials never enter git. It's created directly in the cluster instead:
+#
+#   kubectl create secret generic trip-planner-google-secret \
+#     --from-literal=GOOGLE_CLIENT_ID=<client-id> \
+#     --from-literal=GOOGLE_CLIENT_SECRET=<client-secret>
+#
+# `kubectl apply -f` on this file never touches it since it isn't listed here.
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -207,6 +216,20 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: AUTORUN_ENABLED
               value: "true"
+
+            # OAuth
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: trip-planner-google-secret
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: trip-planner-google-secret
+                  key: GOOGLE_CLIENT_SECRET
+            - name: GOOGLE_REDIRECT_URI
+              value: "https://trip-planner.szanto-zoltan.com/auth/google/callback"
 
             # Cache & Session
             - name: CACHE_STORE

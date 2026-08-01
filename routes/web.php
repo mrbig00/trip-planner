@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\SocialiteController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -10,6 +11,16 @@ Route::get('/', function () {
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/{provider}/redirect', [SocialiteController::class, 'redirect'])
+        ->whereIn('provider', ['google', 'facebook'])
+        ->name('socialite.redirect');
+
+    Route::get('auth/{provider}/callback', [SocialiteController::class, 'callback'])
+        ->whereIn('provider', ['google', 'facebook'])
+        ->name('socialite.callback');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Volt::route('trips', 'trips.index')->name('trips.index');
