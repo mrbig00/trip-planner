@@ -15,12 +15,17 @@ use Livewire\Component;
 class Show extends Component
 {
     public Trip $trip;
+
     public ?int $selectedLocationId = null;
+
     public bool $showVotersModal = false;
+
     public bool $showAddParticipantModal = false;
+
     public string $participantSearch = '';
 
     public ?int $editingExpenseId = null;
+
     public array $editingExpense = [
         'name' => '',
         'description' => '',
@@ -31,8 +36,11 @@ class Show extends Component
     ];
 
     public array $commentTexts = [];
+
     public ?int $expandedLocationId = null;
+
     public bool $showAddCommentModal = false;
+
     public ?int $selectedLocationIdForComment = null;
 
     /**
@@ -53,9 +61,7 @@ class Show extends Component
      */
     public function delete(): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $this->trip->delete();
 
@@ -67,6 +73,8 @@ class Show extends Component
      */
     public function acceptLocation(int $locationId): void
     {
+        $this->ensureIsCreatorOrParticipant();
+
         $location = $this->trip->locations()->findOrFail($locationId);
 
         $location->accept();
@@ -79,9 +87,7 @@ class Show extends Component
      */
     public function deleteLocation(int $locationId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $location = $this->trip->locations()->findOrFail($locationId);
         $location->delete();
@@ -94,6 +100,8 @@ class Show extends Component
      */
     public function toggleVote(int $locationId): void
     {
+        $this->ensureIsCreatorOrParticipant();
+
         $location = $this->trip->locations()->findOrFail($locationId);
         $location->toggleVote(Auth::user());
 
@@ -105,6 +113,8 @@ class Show extends Component
      */
     public function showVoters(int $locationId): void
     {
+        $this->ensureIsCreatorOrParticipant();
+
         $this->selectedLocationId = $locationId;
         $this->showVotersModal = true;
     }
@@ -123,7 +133,7 @@ class Show extends Component
      */
     public function getSelectedLocationVotersProperty(): Collection
     {
-        if (!$this->selectedLocationId) {
+        if (! $this->selectedLocationId) {
             return collect();
         }
 
@@ -159,9 +169,7 @@ class Show extends Component
      */
     public function addParticipant(int $userId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $user = User::findOrFail($userId);
 
@@ -181,9 +189,7 @@ class Show extends Component
      */
     public function removeParticipant(int $userId): void
     {
-        if ($this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureIsCreator();
 
         $this->trip->participants()->detach($userId);
 
@@ -235,7 +241,9 @@ class Show extends Component
      */
     public function addComment(): void
     {
-        if (!$this->selectedLocationIdForComment) {
+        $this->ensureIsCreatorOrParticipant();
+
+        if (! $this->selectedLocationIdForComment) {
             return;
         }
 
@@ -369,6 +377,26 @@ class Show extends Component
 
         $this->cancelEditingExpense();
         $this->trip->refresh();
+    }
+
+    /**
+     * Abort with a 403 unless the current user is the trip creator.
+     */
+    private function ensureIsCreator(): void
+    {
+        if ($this->trip->user_id !== Auth::id()) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Abort with a 403 unless the current user is the trip creator or a participant.
+     */
+    private function ensureIsCreatorOrParticipant(): void
+    {
+        if ($this->trip->user_id !== Auth::id() && ! $this->trip->participants->contains(Auth::id())) {
+            abort(403);
+        }
     }
 
     /**
