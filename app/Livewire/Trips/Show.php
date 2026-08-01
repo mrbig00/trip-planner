@@ -24,6 +24,8 @@ class Show extends Component
 
     public string $participantSearch = '';
 
+    public bool $showEditExpenseModal = false;
+
     public ?int $editingExpenseId = null;
 
     public array $editingExpense = [
@@ -312,9 +314,9 @@ class Show extends Component
     }
 
     /**
-     * Start editing an expense inline.
+     * Open the edit expense modal.
      */
-    public function startEditingExpense(int $expenseId): void
+    public function openEditExpenseModal(int $expenseId): void
     {
         $expense = $this->trip->expenses()->findOrFail($expenseId);
 
@@ -323,6 +325,7 @@ class Show extends Component
             abort(403);
         }
 
+        $this->resetValidation();
         $this->editingExpenseId = $expenseId;
         $this->editingExpense = [
             'name' => $expense->name,
@@ -332,13 +335,16 @@ class Show extends Component
             'quantity' => $expense->quantity,
             'user_id' => $expense->user_id ?? $this->trip->user_id,
         ];
+        $this->showEditExpenseModal = true;
     }
 
     /**
-     * Cancel editing an expense.
+     * Close the edit expense modal.
      */
-    public function cancelEditingExpense(): void
+    public function closeEditExpenseModal(): void
     {
+        $this->resetValidation();
+        $this->showEditExpenseModal = false;
         $this->editingExpenseId = null;
         $this->editingExpense = [];
     }
@@ -375,7 +381,7 @@ class Show extends Component
             'user_id' => $validated['editingExpense']['user_id'],
         ]);
 
-        $this->cancelEditingExpense();
+        $this->closeEditExpenseModal();
         $this->trip->refresh();
     }
 

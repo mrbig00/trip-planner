@@ -35,7 +35,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Expense routes
     Volt::route('trips/{trip}/expenses/create', 'expenses.create')->name('expenses.create');
-    Volt::route('trips/{trip}/expenses/{expense}/edit', 'expenses.edit')->name('expenses.edit');
 });
 
 require __DIR__.'/settings.php';

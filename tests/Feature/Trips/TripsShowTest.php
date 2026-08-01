@@ -433,7 +433,7 @@ test('unrelated user cannot delete an expense', function () {
     expect(Expense::find($expense->id))->not->toBeNull();
 });
 
-test('startEditingExpense populates fields and cancelEditingExpense clears them', function () {
+test('openEditExpenseModal populates fields and closeEditExpenseModal clears them', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     $expense = Expense::factory()->create([
@@ -446,23 +446,25 @@ test('startEditingExpense populates fields and cancelEditingExpense clears them'
     $this->actingAs($owner);
 
     $component = Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
+        ->assertSet('showEditExpenseModal', true)
         ->assertSet('editingExpenseId', $expense->id)
         ->assertSet('editingExpense.name', 'Hotel')
         ->assertSet('editingExpense.unit_price', '100.00');
 
-    $component->call('cancelEditingExpense')
+    $component->call('closeEditExpenseModal')
+        ->assertSet('showEditExpenseModal', false)
         ->assertSet('editingExpenseId', null);
 });
 
-test('startEditingExpense falls back user_id to the trip creator when the expense has no owner', function () {
+test('openEditExpenseModal falls back user_id to the trip creator when the expense has no owner', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => null]);
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
         ->assertSet('editingExpense.user_id', $owner->id);
 });
 
@@ -473,7 +475,7 @@ test('unrelated user cannot start editing an expense', function () {
     $this->actingAs(User::factory()->create());
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
         ->assertForbidden();
 });
 
@@ -490,9 +492,10 @@ test('owner can save an edited expense', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
         ->set('editingExpense.name', 'New Name')
         ->call('saveExpense', $expense->id)
+        ->assertSet('showEditExpenseModal', false)
         ->assertSet('editingExpenseId', null);
 
     expect($expense->fresh()->name)->toBe('New Name');
@@ -519,14 +522,32 @@ test('saveExpense validates the same rules as the expense form', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
         ->set('editingExpense.name', '')
         ->call('saveExpense', $expense->id)
         ->assertHasErrors(['editingExpense.name']);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('startEditingExpense', $expense->id)
+        ->call('openEditExpenseModal', $expense->id)
         ->set('editingExpense.user_id', $unaffiliated->id)
         ->call('saveExpense', $expense->id)
         ->assertHasErrors(['editingExpense.user_id']);
+});
+
+test('closing the edit expense modal clears validation errors for the next expense', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $firstExpense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $secondExpense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('openEditExpenseModal', $firstExpense->id)
+        ->set('editingExpense.name', '')
+        ->call('saveExpense', $firstExpense->id)
+        ->assertHasErrors(['editingExpense.name'])
+        ->call('closeEditExpenseModal')
+        ->assertHasNoErrors()
+        ->call('openEditExpenseModal', $secondExpense->id)
+        ->assertHasNoErrors();
 });

@@ -246,171 +246,75 @@
                                     @php
                                         $canEditExpense = $expense->user_id === Auth::id() || $trip->user_id === Auth::id();
                                     @endphp
-                                    @if ($editingExpenseId === $expense->id && $canEditExpense)
-                                        {{-- Edit Mode --}}
-                                        <td class="px-4 py-3">
-                                            <flux:input
-                                                wire:model="editingExpense.name"
-                                                class="h-8 text-sm"
-                                                required
-                                                autofocus
-                                            />
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <flux:textarea
-                                                wire:model="editingExpense.description"
-                                                class="min-h-[60px] text-sm"
-                                                :placeholder="__('Description...')"
-                                                rows="2"
-                                            />
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <flux:input
-                                                wire:model="editingExpense.link"
-                                                type="url"
-                                                class="h-8 text-sm"
-                                                :placeholder="__('https://...')"
-                                            />
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <flux:select
-                                                wire:model="editingExpense.user_id"
-                                                class="h-8 text-sm"
-                                                required
-                                            >
-                                                <option value="{{ $trip->creator->id }}">{{ $trip->creator->fullName() }}</option>
-                                                @foreach ($trip->participants as $participant)
-                                                    <option value="{{ $participant->id }}">{{ $participant->fullName() }}</option>
-                                                @endforeach
-                                            </flux:select>
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <div class="flex items-center justify-end gap-1">
-                                                <span class="text-neutral-400">$</span>
-                                                <flux:input
-                                                    wire:model="editingExpense.unit_price"
-                                                    type="number"
-                                                    step="0.01"
-                                                    class="h-8 text-sm text-right"
-                                                    required
-                                                    min="0"
+                                    <td class="px-4 py-3">
+                                        <flux:text class="font-medium">{{ $expense->name }}</flux:text>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @if ($expense->description)
+                                            <flux:text class="text-sm text-neutral-400 line-clamp-1">{{ $expense->description }}</flux:text>
+                                        @else
+                                            <flux:text class="text-sm text-neutral-500">—</flux:text>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @if ($expense->link)
+                                            <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-400 hover:text-blue-300">
+                                                {{ __('Open') }}
+                                            </flux:link>
+                                        @else
+                                            <flux:text class="text-sm text-neutral-500">—</flux:text>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @if ($expense->owner)
+                                            <div class="flex items-center gap-2">
+                                                <flux:avatar
+                                                    :name="$expense->owner->fullName()"
+                                                    :initials="$expense->owner->initials()"
+                                                    size="xs"
                                                 />
+                                                <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
                                             </div>
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <flux:input
-                                                wire:model="editingExpense.quantity"
-                                                type="number"
-                                                class="h-8 text-sm text-right"
-                                                required
-                                                min="1"
-                                            />
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <flux:text class="font-semibold">
-                                                ${{ isset($editingExpense['unit_price']) && isset($editingExpense['quantity']) ? number_format((float) $editingExpense['unit_price'] * (int) $editingExpense['quantity'], 2) : '0.00' }}
-                                            </flux:text>
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <div class="flex items-center justify-end gap-2">
+                                        @else
+                                            <flux:text class="text-sm text-neutral-500">—</flux:text>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <flux:text>${{ number_format($expense->unit_price, 2) }}</flux:text>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <flux:text>{{ $expense->quantity }}</flux:text>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <flux:text class="font-semibold">${{ number_format($expense->total, 2) }}</flux:text>
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            @if ($canEditExpense)
                                                 <flux:button
                                                     variant="ghost"
                                                     size="sm"
                                                     icon-only
-                                                    wire:click="saveExpense({{ $expense->id }})"
-                                                    class="text-green-400 hover:text-green-300"
-                                                    title="{{ __('Save') }}"
+                                                    wire:click="openEditExpenseModal({{ $expense->id }})"
+                                                    class="text-neutral-400 hover:text-white"
+                                                    title="{{ __('Edit') }}"
                                                 >
-                                                    <flux:icon.check class="h-4 w-4" />
+                                                    <flux:icon.pencil class="h-4 w-4" />
                                                 </flux:button>
                                                 <flux:button
                                                     variant="ghost"
                                                     size="sm"
                                                     icon-only
-                                                    wire:click="cancelEditingExpense"
-                                                    class="text-neutral-400 hover:text-neutral-300"
-                                                    title="{{ __('Cancel') }}"
+                                                    wire:click="deleteExpense({{ $expense->id }})"
+                                                    wire:confirm="{{ __('Are you sure you want to delete this expense?') }}"
+                                                    class="text-neutral-400 hover:text-red-400"
+                                                    title="{{ __('Delete') }}"
                                                 >
                                                     <flux:icon.x-mark class="h-4 w-4" />
                                                 </flux:button>
-                                            </div>
-                                        </td>
-                                    @else
-                                        {{-- View Mode --}}
-                                        <td class="px-4 py-3">
-                                            <flux:text class="font-medium">{{ $expense->name }}</flux:text>
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            @if ($expense->description)
-                                                <flux:text class="text-sm text-neutral-400 line-clamp-1">{{ $expense->description }}</flux:text>
-                                            @else
-                                                <flux:text class="text-sm text-neutral-500">—</flux:text>
                                             @endif
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            @if ($expense->link)
-                                                <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-400 hover:text-blue-300">
-                                                    {{ __('Open') }}
-                                                </flux:link>
-                                            @else
-                                                <flux:text class="text-sm text-neutral-500">—</flux:text>
-                                            @endif
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            @if ($expense->owner)
-                                                <div class="flex items-center gap-2">
-                                                    <flux:avatar
-                                                        :name="$expense->owner->fullName()"
-                                                        :initials="$expense->owner->initials()"
-                                                        size="xs"
-                                                    />
-                                                    <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
-                                                </div>
-                                            @else
-                                                <flux:text class="text-sm text-neutral-500">—</flux:text>
-                                            @endif
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <flux:text>${{ number_format($expense->unit_price, 2) }}</flux:text>
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <flux:text>{{ $expense->quantity }}</flux:text>
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <flux:text class="font-semibold">${{ number_format($expense->total, 2) }}</flux:text>
-                                        </td>
-                                        <td class="px-4 py-3 text-right">
-                                            <div class="flex items-center justify-end gap-2">
-                                                @if ($canEditExpense)
-                                                    <flux:button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        icon-only
-                                                        wire:click="startEditingExpense({{ $expense->id }})"
-                                                        class="text-neutral-400 hover:text-white"
-                                                        title="{{ __('Edit') }}"
-                                                    >
-                                                        <flux:icon.pencil class="h-4 w-4" />
-                                                    </flux:button>
-                                                @endif
-                                                @if ($canEditExpense)
-                                                    <flux:dropdown>
-                                                        <flux:button variant="ghost" size="sm" icon-only class="text-neutral-400 hover:text-white">
-                                                            <flux:icon.ellipsis-vertical />
-                                                        </flux:button>
-                                                        <flux:menu>
-                                                            <flux:menu.item :href="route('expenses.edit', [$trip, $expense])" wire:navigate>
-                                                                {{ __('Edit in Page') }}
-                                                            </flux:menu.item>
-                                                            <flux:menu.item wire:click="deleteExpense({{ $expense->id }})" wire:confirm="{{ __('Are you sure you want to delete this expense?') }}">
-                                                                {{ __('Delete') }}
-                                                            </flux:menu.item>
-                                                        </flux:menu>
-                                                    </flux:dropdown>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    @endif
+                                        </div>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -659,6 +563,104 @@
                     </flux:button>
                 </div>
             @endif
+        </div>
+    </flux:modal>
+
+    <flux:modal
+        name="edit-expense-modal"
+        :show="$showEditExpenseModal"
+        wire:model="showEditExpenseModal"
+        focusable
+        class="max-w-lg"
+    >
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Edit Expense') }}</flux:heading>
+            </div>
+
+            <flux:field>
+                <flux:input
+                    wire:model="editingExpense.name"
+                    :label="__('Expense Name')"
+                    required
+                    autofocus
+                />
+            </flux:field>
+
+            <flux:field>
+                <flux:textarea
+                    wire:model="editingExpense.description"
+                    :label="__('Description')"
+                    rows="3"
+                />
+            </flux:field>
+
+            <flux:field>
+                <flux:input
+                    wire:model="editingExpense.link"
+                    type="url"
+                    :label="__('Link')"
+                    :placeholder="__('https://...')"
+                />
+            </flux:field>
+
+            <div class="grid gap-6 md:grid-cols-2">
+                <flux:field>
+                    <flux:input
+                        wire:model.live.debounce.300ms="editingExpense.unit_price"
+                        type="number"
+                        step="0.01"
+                        :label="__('Unit Price')"
+                        required
+                        min="0"
+                    />
+                </flux:field>
+
+                <flux:field>
+                    <flux:input
+                        wire:model.live.debounce.300ms="editingExpense.quantity"
+                        type="number"
+                        :label="__('Quantity')"
+                        required
+                        min="1"
+                    />
+                </flux:field>
+            </div>
+
+            @if (isset($editingExpense['unit_price']) && isset($editingExpense['quantity']) && is_numeric($editingExpense['unit_price']))
+                <flux:callout variant="subtle" class="bg-neutral-700/30">
+                    <flux:text>
+                        <strong>{{ __('Total') }}:</strong> ${{ number_format((float) $editingExpense['unit_price'] * (int) $editingExpense['quantity'], 2) }}
+                    </flux:text>
+                </flux:callout>
+            @endif
+
+            <flux:field>
+                <flux:select
+                    wire:model="editingExpense.user_id"
+                    :label="__('Owner')"
+                    required
+                >
+                    <option value="{{ $trip->creator->id }}">{{ $trip->creator->fullName() }}</option>
+                    @foreach ($trip->participants as $participant)
+                        <option value="{{ $participant->id }}">{{ $participant->fullName() }}</option>
+                    @endforeach
+                </flux:select>
+            </flux:field>
+
+            <div class="flex justify-end gap-2">
+                <flux:button variant="ghost" wire:click="closeEditExpenseModal">
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button
+                    variant="primary"
+                    wire:click="saveExpense({{ $editingExpenseId }})"
+                    wire:loading.attr="disabled"
+                    wire:target="saveExpense"
+                >
+                    {{ __('Save') }}
+                </flux:button>
+            </div>
         </div>
     </flux:modal>
 </div>
