@@ -2,49 +2,88 @@
 
 namespace App\Actions\Socialite;
 
+use App\Exceptions\SocialiteAuthenticationException;
 use App\Models\User;
 use App\Models\UserProvider;
-use Laravel\Socialite\Contracts\User as SocialiteUser;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
+use Laravel\Socialite\Two\User as SocialiteUser;
 
 class CreateOrLinkSocialUser
 {
     /**
      * Find, link, or create a local user for the given Socialite user.
+     *
+     * @throws SocialiteAuthenticationException if the provider did not share an email address
      */
     public function handle(string $provider, SocialiteUser $socialiteUser): User
     {
-        $linked = UserProvider::query()
-            ->where('provider', $provider)
-            ->where('provider_id', $socialiteUser->getId())
-            ->first();
+        $email = $socialiteUser->getEmail();
 
-        if ($linked) {
-            return $linked->user;
+        if (! $email) {
+            throw new SocialiteAuthenticationException("Your {$provider} account did not share an email address.");
         }
 
-        $user = User::query()->where('email', $socialiteUser->getEmail())->first();
+        $providerId = $socialiteUser->getId();
+        $emailConfirmedByProvider = $this->emailConfirmedByProvider($provider, $socialiteUser);
 
-        if (! $user) {
-            [$firstName, $lastName] = $this->splitName(
-                $socialiteUser->getName() ?: $socialiteUser->getNickname() ?: $socialiteUser->getEmail()
-            );
+        try {
+            return DB::transaction(function () use ($provider, $providerId, $email, $socialiteUser, $emailConfirmedByProvider) {
+                $linked = UserProvider::query()
+                    ->where('provider', $provider)
+                    ->where('provider_id', $providerId)
+                    ->first();
 
-            $user = User::forceCreate([
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'email' => $socialiteUser->getEmail(),
-                'email_verified_at' => now(),
-            ]);
-        } elseif (! $user->email_verified_at) {
-            $user->forceFill(['email_verified_at' => now()])->save();
+                if ($linked) {
+                    return $linked->user;
+                }
+
+                $user = User::query()->where('email', $email)->first();
+
+                if (! $user) {
+                    [$firstName, $lastName] = $this->splitName(
+                        $socialiteUser->getName() ?: $socialiteUser->getNickname() ?: $email
+                    );
+
+                    $user = User::forceCreate([
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'email' => $email,
+                        'email_verified_at' => $emailConfirmedByProvider ? now() : null,
+                    ]);
+                } elseif ($emailConfirmedByProvider && ! $user->email_verified_at) {
+                    $user->forceFill(['email_verified_at' => now()])->save();
+                }
+
+                $user->providers()->create([
+                    'provider' => $provider,
+                    'provider_id' => $providerId,
+                ]);
+
+                return $user;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // A concurrent callback for the same identity won the race and already linked it.
+            return UserProvider::query()
+                ->where('provider', $provider)
+                ->where('provider_id', $providerId)
+                ->firstOrFail()
+                ->user;
         }
+    }
 
-        $user->providers()->create([
-            'provider' => $provider,
-            'provider_id' => $socialiteUser->getId(),
-        ]);
-
-        return $user;
+    /**
+     * Determine whether the provider itself already confirmed this email address.
+     */
+    private function emailConfirmedByProvider(string $provider, SocialiteUser $socialiteUser): bool
+    {
+        return match ($provider) {
+            // Google's OpenID Connect userinfo response includes `email_verified`.
+            'google' => (bool) ($socialiteUser->getRaw()['email_verified'] ?? false),
+            // Facebook only grants the "email" permission for addresses it has already verified.
+            'facebook' => true,
+            default => false,
+        };
     }
 
     /**

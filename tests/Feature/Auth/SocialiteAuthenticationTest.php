@@ -18,6 +18,7 @@ test('callback creates a new user when no account matches the email', function (
         'id' => 'provider-id-123',
         'name' => 'Jane Doe',
         'email' => 'jane@example.com',
+        'email_verified' => true,
     ]));
 
     $response = $this->get(route('socialite.callback', $provider));
@@ -60,6 +61,7 @@ test('callback links an existing user found by email and logs them in', function
         'id' => 'provider-id-456',
         'name' => 'Jane Doe',
         'email' => 'jane@example.com',
+        'email_verified' => true,
     ]));
 
     $this->get(route('socialite.callback', $provider))
@@ -71,6 +73,52 @@ test('callback links an existing user found by email and logs them in', function
     expect(User::count())->toBe(1);
     expect(UserProvider::query()->where('user_id', $existing->id)->where('provider', $provider)->where('provider_id', 'provider-id-456')->exists())->toBeTrue();
 })->with(['google', 'facebook']);
+
+test('callback redirects back to login with an error when the provider shares no email', function (string $provider) {
+    Socialite::fake($provider, SocialiteUser::fake([
+        'id' => 'provider-id-no-email',
+        'name' => 'Jane Doe',
+        'email' => null,
+    ]));
+
+    $response = $this->get(route('socialite.callback', $provider));
+
+    $response->assertRedirect(route('login', absolute: false));
+    $response->assertSessionHasErrors('email');
+    $this->assertGuest();
+    expect(User::count())->toBe(0);
+})->with(['google', 'facebook']);
+
+test('callback leaves a new google user unverified when the provider has not confirmed the email', function () {
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'provider-id-unverified',
+        'name' => 'Jane Doe',
+        'email' => 'jane@example.com',
+        'email_verified' => false,
+    ]));
+
+    $this->get(route('socialite.callback', 'google'))
+        ->assertRedirect(route('dashboard', absolute: false));
+
+    $user = User::where('email', 'jane@example.com')->first();
+
+    expect($user->email_verified_at)->toBeNull();
+});
+
+test('callback does not verify an existing unverified user when google has not confirmed the email', function () {
+    $existing = User::factory()->unverified()->create(['email' => 'jane@example.com']);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'provider-id-unverified-2',
+        'name' => 'Jane Doe',
+        'email' => 'jane@example.com',
+        'email_verified' => false,
+    ]));
+
+    $this->get(route('socialite.callback', 'google'));
+
+    expect($existing->fresh()->email_verified_at)->toBeNull();
+});
 
 test('callback does not overwrite an already verified email when linking', function () {
     $verifiedAt = now()->subDay();

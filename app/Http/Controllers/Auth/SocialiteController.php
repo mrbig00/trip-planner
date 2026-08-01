@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\Socialite\CreateOrLinkSocialUser;
+use App\Exceptions\SocialiteAuthenticationException;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +26,11 @@ class SocialiteController extends Controller
     {
         $socialiteUser = Socialite::driver($provider)->user();
 
-        $user = $createOrLinkSocialUser->handle($provider, $socialiteUser);
+        try {
+            $user = $createOrLinkSocialUser->handle($provider, $socialiteUser);
+        } catch (SocialiteAuthenticationException $exception) {
+            return redirect()->route('login')->withErrors(['email' => $exception->getMessage()]);
+        }
 
         Auth::login($user, remember: true);
 
