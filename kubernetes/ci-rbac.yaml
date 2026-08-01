@@ -1,0 +1,55 @@
+# ServiceAccount used by the GitHub Actions deploy pipeline (.github/workflows/deploy.yml).
+# Scoped to only the resource kinds and the namespace this app runs in — not cluster-admin.
+#
+# One-time setup after `kubectl apply -f kubernetes/ci-rbac.yaml`:
+#
+#   TOKEN=$(kubectl create token trip-planner-ci -n default --duration=87600h)
+#   SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+#   CA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+#
+# Build a kubeconfig from TOKEN/SERVER/CA and store its raw YAML contents (no base64)
+# in the repo secret KUBE_CONFIG.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trip-planner-ci
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: trip-planner-ci-role
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: trip-planner-ci-rolebinding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: trip-planner-ci
+    namespace: default
+roleRef:
+  kind: Role
+  name: trip-planner-ci-role
+  apiGroup: rbac.authorization.k8s.io

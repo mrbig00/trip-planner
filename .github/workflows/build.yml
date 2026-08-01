@@ -3,12 +3,16 @@ name: Build Docker image
 on:
   push:
     branches:
-      - main
       - develop
   pull_request:
     branches:
       - main
       - develop
+  workflow_call:
+    outputs:
+      image:
+        description: Fully qualified pushed image reference (registry/repo:sha)
+        value: ${{ jobs.build.outputs.image }}
 
 concurrency:
   group: build-${{ github.ref }}
@@ -23,6 +27,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
 
     steps:
       - name: Checkout
@@ -59,3 +65,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Resolve pushed image reference
+        id: image
+        run: echo "image=${REGISTRY}/${GITHUB_REPOSITORY_OWNER}/trip-planner:${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
