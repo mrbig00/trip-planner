@@ -56,3 +56,59 @@ test('a location defaults to not accepted', function () {
 
     expect($location->accepted)->toBeFalse();
 });
+
+test('accepting a location unaccepts its siblings in the same trip', function () {
+    $trip = Trip::factory()->create();
+    $accepted = Location::factory()->create(['trip_id' => $trip->id, 'accepted' => true]);
+    $other = Location::factory()->create(['trip_id' => $trip->id, 'accepted' => false]);
+
+    $other->accept();
+
+    expect($other->fresh()->accepted)->toBeTrue();
+    expect($accepted->fresh()->accepted)->toBeFalse();
+});
+
+test('accepting a location does not affect locations in other trips', function () {
+    $tripA = Trip::factory()->create();
+    $tripB = Trip::factory()->create();
+    $locationA = Location::factory()->create(['trip_id' => $tripA->id, 'accepted' => false]);
+    $locationB = Location::factory()->create(['trip_id' => $tripB->id, 'accepted' => true]);
+
+    $locationA->accept();
+
+    expect($locationA->fresh()->accepted)->toBeTrue();
+    expect($locationB->fresh()->accepted)->toBeTrue();
+});
+
+test('toggleVote attaches a vote on first call and detaches on second', function () {
+    $location = Location::factory()->create();
+    $user = \App\Models\User::factory()->create();
+
+    $attached = $location->toggleVote($user);
+    expect($attached)->toBeTrue();
+    expect($location->hasVoteFrom($user))->toBeTrue();
+
+    $detached = $location->toggleVote($user);
+    expect($detached)->toBeFalse();
+    expect($location->hasVoteFrom($user))->toBeFalse();
+});
+
+test('hasVoteFrom reports whether the given user has voted', function () {
+    $location = Location::factory()->create();
+    $voter = \App\Models\User::factory()->create();
+    $nonVoter = \App\Models\User::factory()->create();
+
+    $location->votes()->attach($voter->id);
+
+    expect($location->hasVoteFrom($voter))->toBeTrue();
+    expect($location->hasVoteFrom($nonVoter))->toBeFalse();
+});
+
+test('votes returns the users who voted for the location', function () {
+    $location = Location::factory()->create();
+    $voter = \App\Models\User::factory()->create();
+
+    $location->votes()->attach($voter->id);
+
+    expect($location->votes()->pluck('users.id'))->toContain($voter->id);
+});

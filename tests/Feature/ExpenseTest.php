@@ -45,3 +45,37 @@ test('an expense defaults to quantity of 1', function () {
 
     expect($expense->quantity)->toBe(1);
 });
+
+test('an expense belongs to its owner', function () {
+    $trip = Trip::factory()->create();
+    $owner = \App\Models\User::factory()->create();
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+    ]);
+
+    expect($expense->owner)->toBeInstanceOf(\App\Models\User::class);
+    expect($expense->owner->id)->toBe($owner->id);
+});
+
+test('an expense total is zero when quantity is zero', function () {
+    $trip = Trip::factory()->create();
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'unit_price' => 50.00,
+        'quantity' => 0,
+    ]);
+
+    expect((float) $expense->total)->toBe(0.0);
+});
+
+test('an expense total preserves decimal precision', function () {
+    $trip = Trip::factory()->create();
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'unit_price' => 19.99,
+        'quantity' => 3,
+    ]);
+
+    expect((float) $expense->total)->toBe(59.97);
+});

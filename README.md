@@ -42,6 +42,12 @@ Tip: add a `sail` alias to your shell profile to shorten these:
 alias sail='[ -f sail ] && sh sail || sh vendor/bin/sail'
 ```
 
+To run the enforced coverage check locally (Sail's PHP image ships Xdebug but disabled by default), set `SAIL_XDEBUG_MODE=coverage` in `.env`, then run:
+
+```bash
+sail composer test:coverage
+```
+
 ### Services
 
 - **laravel.test** — the app container (PHP 8.5 runtime)
