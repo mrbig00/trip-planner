@@ -1,0 +1,304 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trip-planner-postgres-config
+data:
+  POSTGRES_DB: trip_planner
+  POSTGRES_USER: trip_planner
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: trip-planner-postgres-secret
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: changeme_secure_password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: laravel-secret
+type: Opaque
+stringData:
+  APP_KEY: base64:k7JmN2pQ4rT6vX9zA1bC3dE5fG7hI0jL2nO4qR8sU6wY=
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: trip-planner-postgres-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: trip-planner-postgres-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: trip-planner-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - trip_planner
+                - -d
+                - trip_planner
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - trip_planner
+                - -d
+                - trip_planner
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: laravel-storage
+  labels:
+    app: trip-planner
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trip-planner
+  labels:
+    app: trip-planner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trip-planner
+  template:
+    metadata:
+      labels:
+        app: trip-planner
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+        - name: laravel
+          imagePullPolicy: Always
+          image: ghcr.io/mrbig00/trip-planner:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          env:
+            # Application
+            - name: APP_NAME
+              value: "Trip Planner"
+            - name: APP_ENV
+              value: production
+            - name: APP_KEY
+              value: base64:VjxPe7zpVHs6/vo0+QzMMD3rI/h49MMA9AVVK36xB+c=
+            - name: APP_DEBUG
+              value: "true"
+            - name: APP_URL
+              value: "https://trip-planner.szanto-zoltan.com"
+
+            # Database
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: trip-planner-postgres-config
+                  key: POSTGRES_DB
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: trip-planner-postgres-config
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: trip-planner-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: AUTORUN_ENABLED
+              value: "true"
+
+            # Cache & Session
+            - name: CACHE_STORE
+              value: redis
+            - name: SESSION_DRIVER
+              value: redis
+            - name: QUEUE_CONNECTION
+              value: database
+
+            # Logging
+            - name: LOG_CHANNEL
+              value: stderr
+            - name: LOG_LEVEL
+              value: info
+
+            # Broadcasting & Queue
+            - name: BROADCAST_CONNECTION
+              value: log
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /up
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          volumeMounts:
+            - name: laravel-storage
+              mountPath: /var/www/html/storage/app
+              subPath: app
+            - name: laravel-storage
+              mountPath: /var/www/html/storage/logs
+              subPath: logs
+            - name: laravel-storage
+              mountPath: /var/www/html/storage/framework/cache
+              subPath: framework/cache
+            - name: laravel-storage
+              mountPath: /var/www/html/storage/framework/sessions
+              subPath: framework/sessions
+            - name: laravel-storage
+              mountPath: /var/www/html/storage/framework/views
+              subPath: framework/views
+      volumes:
+        - name: laravel-storage
+          persistentVolumeClaim:
+            claimName: laravel-storage
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trip-planner
+  labels:
+    app: trip-planner
+spec:
+  type: ClusterIP
+  selector:
+    app: trip-planner
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: trip-planner-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: trip-planner.szanto-zoltan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: trip-planner
+                port:
+                  number: 80
