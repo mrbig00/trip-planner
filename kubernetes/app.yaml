@@ -1,3 +1,6 @@
+# This file is applied by CI on every deploy (.github/workflows/deploy.yml) and holds
+# no Secrets — those live in kubernetes/secrets.example.yaml, which is a template only,
+# applied by hand, so CI can never overwrite a live credential with a stale git value.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,31 +8,6 @@ metadata:
 data:
   POSTGRES_DB: trip_planner
   POSTGRES_USER: trip_planner
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: trip-planner-postgres-secret
-type: Opaque
-stringData:
-  POSTGRES_PASSWORD: changeme_secure_password
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: laravel-secret
-type: Opaque
-stringData:
-  APP_KEY: base64:k7JmN2pQ4rT6vX9zA1bC3dE5fG7hI0jL2nO4qR8sU6wY=
----
-# trip-planner-google-secret is intentionally not defined here so the real
-# credentials never enter git. It's created directly in the cluster instead:
-#
-#   kubectl create secret generic trip-planner-google-secret \
-#     --from-literal=GOOGLE_CLIENT_ID=<client-id> \
-#     --from-literal=GOOGLE_CLIENT_SECRET=<client-secret>
-#
-# `kubectl apply -f` on this file never touches it since it isn't listed here.
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -185,6 +163,8 @@ spec:
               value: "Trip Planner"
             - name: APP_ENV
               value: production
+            # Inline (not secretKeyRef) so rotating it doesn't depend on the unused
+            # laravel-secret template in kubernetes/secrets.example.yaml.
             - name: APP_KEY
               value: base64:VjxPe7zpVHs6/vo0+QzMMD3rI/h49MMA9AVVK36xB+c=
             - name: APP_DEBUG
@@ -312,8 +292,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: trip-planner-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - trip-planner.szanto-zoltan.com
+      secretName: trip-planner-tls
   rules:
     - host: trip-planner.szanto-zoltan.com
       http:
