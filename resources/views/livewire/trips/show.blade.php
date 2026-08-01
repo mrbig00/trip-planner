@@ -346,6 +346,62 @@
 
     <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
         <div class="flex items-center justify-between mb-4">
+            <flux:heading size="lg">{{ __('Settle Up') }}</flux:heading>
+            <flux:badge>{{ count($this->settlementTransfers) }}</flux:badge>
+        </div>
+
+        @if ($trip->expenses->count() > 0)
+            <div class="mb-6">
+                <flux:subheading class="mb-3">{{ __('Balances') }}</flux:subheading>
+                <div class="flex flex-wrap gap-3">
+                    @foreach ($this->balances as $balance)
+                        <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                            <flux:avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" size="sm" />
+                            <flux:text class="text-sm">{{ $balance['user']->fullName() }}</flux:text>
+                            @if ($balance['balanceCents'] > 0)
+                                <flux:badge color="green">{{ __('is owed') }} ${{ number_format($balance['balanceCents'] / 100, 2) }}</flux:badge>
+                            @elseif ($balance['balanceCents'] < 0)
+                                <flux:badge color="red">{{ __('owes') }} ${{ number_format(abs($balance['balanceCents']) / 100, 2) }}</flux:badge>
+                            @else
+                                <flux:badge>{{ __('Settled up') }}</flux:badge>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <flux:subheading class="mb-3">{{ __('Suggested Transfers') }}</flux:subheading>
+            @if (count($this->settlementTransfers) > 0)
+                <div class="space-y-2">
+                    @foreach ($this->settlementTransfers as $transfer)
+                        <div class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
+                            <div class="flex items-center gap-2">
+                                <flux:avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" size="xs" />
+                                <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
+                            </div>
+                            <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
+                            <div class="flex items-center gap-2">
+                                <flux:avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" size="xs" />
+                                <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
+                            </div>
+                            <flux:text class="ml-auto font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <flux:callout variant="subtle">
+                    <flux:text>{{ __('Everyone is settled up!') }}</flux:text>
+                </flux:callout>
+            @endif
+        @else
+            <flux:callout variant="subtle">
+                <flux:text>{{ __('No expenses added yet.') }}</flux:text>
+            </flux:callout>
+        @endif
+    </div>
+
+    <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+        <div class="flex items-center justify-between mb-4">
             <flux:heading size="lg">{{ __('Participants') }}</flux:heading>
             <div class="flex items-center gap-2">
                 <flux:badge>{{ $trip->participants->count() }}</flux:badge>
@@ -647,6 +703,87 @@
                     @endforeach
                 </flux:select>
             </flux:field>
+
+            <flux:separator />
+
+            <flux:checkbox.group wire:model="editingExpense.participant_ids" :label="__('Split between')">
+                @foreach ($trip->members() as $member)
+                    <flux:checkbox value="{{ $member->id }}" :label="$member->fullName()" />
+                @endforeach
+            </flux:checkbox.group>
+            @error('participant_ids')
+                <flux:error>{{ $message }}</flux:error>
+            @enderror
+
+            <flux:field>
+                <flux:select
+                    wire:model.live="editingExpense.split_type"
+                    :label="__('Split type')"
+                >
+                    <option value="equal">{{ __('Equal') }}</option>
+                    <option value="percentage">{{ __('Percentage') }}</option>
+                    <option value="fixed">{{ __('Fixed amount') }}</option>
+                </flux:select>
+            </flux:field>
+
+            @php
+                $editSelectedMembers = $trip->members()->whereIn('id', $editingExpense['participant_ids'] ?? []);
+            @endphp
+
+            @if (($editingExpense['split_type'] ?? 'equal') === 'percentage')
+                <div class="space-y-2">
+                    @foreach ($editSelectedMembers as $member)
+                        <div class="flex items-center gap-3">
+                            <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
+                            <flux:input
+                                wire:model.live="editingExpense.percentages.{{ $member->id }}"
+                                type="number"
+                                step="0.01"
+                                class="w-28"
+                                suffix="%"
+                            />
+                        </div>
+                    @endforeach
+                    @php
+                        $editPercentageSum = array_sum(array_map('floatval', $editingExpense['percentages'] ?? []));
+                    @endphp
+                    <flux:text class="text-sm {{ abs($editPercentageSum - 100) <= 0.5 ? 'text-green-500' : 'text-red-500' }}">
+                        {{ number_format($editPercentageSum, 2) }}% / 100%
+                    </flux:text>
+                    @error('percentages')
+                        <flux:error>{{ $message }}</flux:error>
+                    @enderror
+                </div>
+            @elseif (($editingExpense['split_type'] ?? 'equal') === 'fixed')
+                <div class="space-y-2">
+                    @foreach ($editSelectedMembers as $member)
+                        <div class="flex items-center gap-3">
+                            <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
+                            <flux:input
+                                wire:model.live="editingExpense.fixed_amounts.{{ $member->id }}"
+                                type="number"
+                                step="0.01"
+                                class="w-28"
+                                prefix="$"
+                            />
+                        </div>
+                    @endforeach
+                    @php
+                        $editFixedSum = array_sum(array_map('floatval', $editingExpense['fixed_amounts'] ?? []));
+                        $editFixedTotal = (is_numeric($editingExpense['unit_price'] ?? null) ? (float) $editingExpense['unit_price'] : 0) * (int) ($editingExpense['quantity'] ?? 0);
+                    @endphp
+                    <flux:text class="text-sm {{ abs($editFixedSum - $editFixedTotal) < 0.005 ? 'text-green-500' : 'text-red-500' }}">
+                        ${{ number_format($editFixedSum, 2) }} / ${{ number_format($editFixedTotal, 2) }}
+                    </flux:text>
+                    @error('fixed_amounts')
+                        <flux:error>{{ $message }}</flux:error>
+                    @enderror
+                </div>
+            @else
+                <flux:text class="text-sm text-neutral-400">
+                    {{ __('Each of the :count selected members pays an equal share.', ['count' => count($editingExpense['participant_ids'] ?? [])]) }}
+                </flux:text>
+            @endif
 
             <div class="flex justify-end gap-2">
                 <flux:button variant="ghost" wire:click="closeEditExpenseModal">

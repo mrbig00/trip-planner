@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ExpenseSplitType;
 use App\Models\Trip;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -25,6 +26,7 @@ class ExpenseFactory extends Factory
             'link' => fake()->optional()->url(),
             'unit_price' => fake()->randomFloat(2, 5, 100),
             'quantity' => fake()->numberBetween(1, 10),
+            'split_type' => ExpenseSplitType::Equal->value,
         ];
     }
 }

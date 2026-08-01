@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace App\Livewire\Trips;
 
+use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\CalculateSettlementPlan;
+use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Enums\ExpenseSplitType;
 use App\Models\LocationComment;
 use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Livewire\Component;
 
@@ -35,6 +41,10 @@ class Show extends Component
         'unit_price' => '',
         'quantity' => 1,
         'user_id' => null,
+        'split_type' => 'equal',
+        'participant_ids' => [],
+        'percentages' => [],
+        'fixed_amounts' => [],
     ];
 
     public array $commentTexts = [];
@@ -50,7 +60,7 @@ class Show extends Component
      */
     public function mount(Trip $trip): void
     {
-        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner']);
+        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares']);
     }
 
     public function updatedExpandedLocationId(): void
@@ -318,7 +328,7 @@ class Show extends Component
      */
     public function openEditExpenseModal(int $expenseId): void
     {
-        $expense = $this->trip->expenses()->findOrFail($expenseId);
+        $expense = $this->trip->expenses()->with('shares')->findOrFail($expenseId);
 
         // Only expense owner or trip creator can edit
         if ($expense->user_id !== Auth::id() && $this->trip->user_id !== Auth::id()) {
@@ -334,8 +344,26 @@ class Show extends Component
             'unit_price' => (string) $expense->unit_price,
             'quantity' => $expense->quantity,
             'user_id' => $expense->user_id ?? $this->trip->user_id,
+            'split_type' => $expense->split_type->value,
+            'participant_ids' => $expense->shares->isNotEmpty()
+                ? $expense->shares->pluck('user_id')->all()
+                : $this->trip->members()->pluck('id')->all(),
+            'percentages' => $expense->shares->pluck('percentage', 'user_id')->filter()->map(fn ($percentage) => (string) $percentage)->all(),
+            'fixed_amounts' => $expense->shares->pluck('amount', 'user_id')->map(fn ($amount) => (string) $amount)->all(),
         ];
         $this->showEditExpenseModal = true;
+    }
+
+    /**
+     * Prune stale split inputs whenever the selected participants or split type change.
+     */
+    public function updated(string $name): void
+    {
+        if ($name === 'editingExpense.participant_ids' || $name === 'editingExpense.split_type') {
+            $selected = $this->editingExpense['participant_ids'] ?? [];
+            $this->editingExpense['percentages'] = collect($this->editingExpense['percentages'] ?? [])->only($selected)->all();
+            $this->editingExpense['fixed_amounts'] = collect($this->editingExpense['fixed_amounts'] ?? [])->only($selected)->all();
+        }
     }
 
     /**
@@ -361,7 +389,7 @@ class Show extends Component
             abort(403);
         }
 
-        $eligibleUserIds = $this->trip->participants->pluck('id')->push($this->trip->user_id)->unique()->toArray();
+        $eligibleUserIds = $this->trip->members()->pluck('id')->all();
 
         $validated = $this->validate([
             'editingExpense.name' => ['required', 'string', 'max:255'],
@@ -370,19 +398,75 @@ class Show extends Component
             'editingExpense.unit_price' => ['required', 'numeric', 'min:0'],
             'editingExpense.quantity' => ['required', 'integer', 'min:1'],
             'editingExpense.user_id' => ['required', 'exists:users,id', 'in:'.implode(',', $eligibleUserIds)],
+            'editingExpense.split_type' => ['required', Rule::enum(ExpenseSplitType::class)],
+            'editingExpense.participant_ids' => ['required', 'array', 'min:1'],
+            'editingExpense.participant_ids.*' => ['integer', 'in:'.implode(',', $eligibleUserIds), 'distinct'],
         ]);
 
-        $expense->update([
-            'name' => $validated['editingExpense']['name'],
-            'description' => $validated['editingExpense']['description'] ?? null,
-            'link' => $validated['editingExpense']['link'] ?? null,
-            'unit_price' => $validated['editingExpense']['unit_price'],
-            'quantity' => $validated['editingExpense']['quantity'],
-            'user_id' => $validated['editingExpense']['user_id'],
-        ]);
+        $splitType = ExpenseSplitType::from($validated['editingExpense']['split_type']);
+        $totalCents = (int) bcmul(bcmul((string) $validated['editingExpense']['unit_price'], '100', 0), (string) $validated['editingExpense']['quantity'], 0);
+
+        app(ValidateExpenseSplit::class)->validate(
+            $splitType,
+            $this->editingExpense['participant_ids'],
+            $this->editingExpense['percentages'],
+            $this->editingExpense['fixed_amounts'],
+            $totalCents
+        );
+
+        DB::transaction(function () use ($expense, $validated, $splitType, $totalCents) {
+            $expense->update([
+                'name' => $validated['editingExpense']['name'],
+                'description' => $validated['editingExpense']['description'] ?? null,
+                'link' => $validated['editingExpense']['link'] ?? null,
+                'unit_price' => $validated['editingExpense']['unit_price'],
+                'quantity' => $validated['editingExpense']['quantity'],
+                'user_id' => $validated['editingExpense']['user_id'],
+                'split_type' => $splitType->value,
+            ]);
+
+            $expense->shares()->delete();
+            $expense->shares()->createMany(
+                app(BuildExpenseShares::class)->build(
+                    $totalCents,
+                    $splitType,
+                    $validated['editingExpense']['participant_ids'],
+                    $this->editingExpense['percentages'],
+                    $this->editingExpense['fixed_amounts']
+                )
+            );
+        });
 
         $this->closeEditExpenseModal();
         $this->trip->refresh();
+    }
+
+    /**
+     * Get each trip member's balance, keyed for the Settle Up card.
+     */
+    public function getBalancesProperty(): Collection
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return $this->trip->balances()->map(fn ($cents, $userId) => [
+            'user' => $members->get($userId),
+            'balanceCents' => $cents,
+        ])->values();
+    }
+
+    /**
+     * Get the minimal transfer plan that settles all balances.
+     */
+    public function getSettlementTransfersProperty(): array
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return collect(app(CalculateSettlementPlan::class)->calculate($this->trip->balances()))
+            ->map(fn ($transfer) => [
+                'from' => $members->get($transfer['from']),
+                'to' => $members->get($transfer['to']),
+                'amountCents' => $transfer['amount'],
+            ])->all();
     }
 
     /**
