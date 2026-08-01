@@ -3,7 +3,7 @@
   "name": "laravel/livewire-starter-kit",
   "type": "project",
   "description": "The official Laravel starter kit for Livewire.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "keywords": [
     "laravel",
     "framework"
