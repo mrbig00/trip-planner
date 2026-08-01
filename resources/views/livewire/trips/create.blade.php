@@ -27,6 +27,24 @@
                 />
             </flux:field>
 
+            <div class="grid gap-6 sm:grid-cols-2">
+                <flux:field>
+                    <flux:input
+                        type="date"
+                        wire:model="start_date"
+                        :label="__('Start Date')"
+                    />
+                </flux:field>
+
+                <flux:field>
+                    <flux:input
+                        type="date"
+                        wire:model="end_date"
+                        :label="__('End Date')"
+                    />
+                </flux:field>
+            </div>
+
             <flux:separator />
 
             <div class="flex items-center gap-3">
