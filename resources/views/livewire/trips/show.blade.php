@@ -110,9 +110,17 @@
                                     variant="ghost"
                                     size="sm"
                                     wire:click="toggleVote({{ $location->id }})"
-                                    class="{{ $hasVoted ? 'text-rose-500 hover:text-rose-400' : 'text-neutral-300 hover:text-white' }}"
+                                    {{-- The `!` (important) modifier is required here: Flux's ghost-variant button
+                                    already sets `text-zinc-800 dark:text-white`, and Tailwind resolves same-specificity
+                                    utility conflicts by order in the compiled stylesheet, not by order in this class
+                                    attribute, so a plain override class would otherwise silently lose. --}}
+                                    class="{{ $hasVoted ? '!text-red-500 hover:!text-red-400' : '!text-neutral-300 hover:!text-white' }}"
                                 >
-                                    <flux:icon.heart variant="{{ $hasVoted ? 'solid' : 'outline' }}" class="h-4 w-4" />
+                                    {{-- inline-block overrides Tailwind's `svg { display: block }` preflight rule: without
+                                    it, the icon and label get wrapped together in a plain (non-flex) <span> by Flux's
+                                    automatic wire:click loading-state handling, and the block-level icon forces the
+                                    label onto its own line below it. --}}
+                                    <flux:icon.heart variant="{{ $hasVoted ? 'solid' : 'outline' }}" class="h-4 w-4 inline-block" />
                                     {{ $hasVoted ? __('Voted') : __('Vote') }}
                                 </flux:button>
                                 @if ($location->accepted)
