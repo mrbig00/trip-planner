@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use App\Support\Money;
+use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Support\Collection;
 
 class Trip extends Model
 {
@@ -75,6 +75,14 @@ class Trip extends Model
     }
 
     /**
+     * Get the recorded settlements for the trip.
+     */
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(Settlement::class);
+    }
+
+    /**
      * Get the trip's creator and participants as a single deduplicated collection of users.
      */
     public function members(): Collection
@@ -85,7 +93,9 @@ class Trip extends Model
     /**
      * Calculate each member's balance in integer cents: positive means the
      * member is owed money, negative means the member owes money. Requires
-     * `expenses.shares` to be eager-loaded.
+     * `expenses.shares` to be eager-loaded. Nets out recorded settlements, so
+     * this always reflects who owes whom *right now*, not the gross figure
+     * before anyone paid anyone back.
      */
     public function balances(): Collection
     {
@@ -100,6 +110,18 @@ class Trip extends Model
                 if ($balances->has($share->user_id)) {
                     $balances[$share->user_id] -= Money::toCents((string) $share->amount);
                 }
+            }
+        }
+
+        foreach ($this->settlements as $settlement) {
+            // A settlement of amount_cents from A to B means A already paid B:
+            // A's remaining debt shrinks, B's remaining receivable shrinks.
+            if ($balances->has($settlement->from_user_id)) {
+                $balances[$settlement->from_user_id] += $settlement->amount_cents;
+            }
+
+            if ($balances->has($settlement->to_user_id)) {
+                $balances[$settlement->to_user_id] -= $settlement->amount_cents;
             }
         }
 

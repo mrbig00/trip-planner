@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace App\Livewire\Trips;
 
-use App\Actions\Expenses\BuildExpenseShares;
-use App\Actions\Expenses\CalculateSettlementPlan;
-use App\Actions\Expenses\ValidateExpenseSplit;
-use App\Enums\ExpenseSplitType;
-use App\Models\LocationComment;
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\View\View;
 use Livewire\Component;
+use Illuminate\View\View;
+use App\Models\Settlement;
+use App\Enums\ExpenseSplitType;
+use App\Models\LocationComment;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Actions\Expenses\CalculateSettlementPlan;
 
 class Show extends Component
 {
@@ -60,7 +61,7 @@ class Show extends Component
      */
     public function mount(Trip $trip): void
     {
-        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares']);
+        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares', 'settlements']);
     }
 
     public function updatedExpandedLocationId(): void
@@ -478,6 +479,65 @@ class Show extends Component
     }
 
     /**
+     * Record a suggested transfer as settled.
+     *
+     * The amount is re-derived from the live server-side balances rather than
+     * trusted outright: `wire:click` arguments are rendered into the DOM, so a
+     * tampered value must never be allowed to exceed what's actually owed.
+     */
+    public function markTransferSettled(int $fromUserId, int $toUserId, int $amountCents): void
+    {
+        $memberIds = $this->trip->members()->pluck('id');
+
+        if ($fromUserId === $toUserId || ! $memberIds->contains($fromUserId) || ! $memberIds->contains($toUserId)) {
+            abort(403);
+        }
+
+        $this->ensureCanRecordSettlement($fromUserId, $toUserId);
+
+        if ($amountCents <= 0) {
+            abort(422);
+        }
+
+        $balances = $this->trip->balances();
+        $maxSettleable = min(
+            max(0, -$balances->get($fromUserId, 0)),
+            max(0, $balances->get($toUserId, 0)),
+        );
+
+        if ($amountCents > $maxSettleable) {
+            abort(422);
+        }
+
+        $this->trip->settlements()->create([
+            'from_user_id' => $fromUserId,
+            'to_user_id' => $toUserId,
+            'amount_cents' => $amountCents,
+            'recorded_by_user_id' => Auth::id(),
+        ]);
+
+        $this->trip->refresh();
+    }
+
+    /**
+     * Get the trip's most recent settlements, for a small read-only history list.
+     */
+    public function getRecentSettlementsProperty(): Collection
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return $this->trip->settlements
+            ->sortByDesc('created_at')
+            ->take(5)
+            ->map(fn (Settlement $settlement) => [
+                'id' => $settlement->id,
+                'from' => $members->get($settlement->from_user_id),
+                'to' => $members->get($settlement->to_user_id),
+                'amountCents' => $settlement->amount_cents,
+            ])->values();
+    }
+
+    /**
      * Abort with a 403 unless the current user is the trip creator.
      */
     private function ensureIsCreator(): void
@@ -493,6 +553,21 @@ class Show extends Component
     private function ensureIsCreatorOrParticipant(): void
     {
         if ($this->trip->user_id !== Auth::id() && ! $this->trip->participants->contains(Auth::id())) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Abort with a 403 unless the current user is the trip creator or one of the
+     * two specific parties on this transfer (deliberately narrower than
+     * ensureIsCreatorOrParticipant: an unrelated participant shouldn't be able
+     * to fabricate a settlement between two other members).
+     */
+    private function ensureCanRecordSettlement(int $fromUserId, int $toUserId): void
+    {
+        $userId = Auth::id();
+
+        if ($userId !== $this->trip->user_id && $userId !== $fromUserId && $userId !== $toUserId) {
             abort(403);
         }
     }

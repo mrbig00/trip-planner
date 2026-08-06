@@ -462,7 +462,20 @@
                                 <flux:avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" size="xs" />
                                 <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
                             </div>
-                            <flux:text class="ml-auto font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                            <div class="ml-auto flex items-center gap-3">
+                                <flux:text class="font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                                @if ($trip->user_id === Auth::id() || $transfer['from']->id === Auth::id() || $transfer['to']->id === Auth::id())
+                                    <flux:button
+                                        variant="ghost"
+                                        size="sm"
+                                        wire:click="markTransferSettled({{ $transfer['from']->id }}, {{ $transfer['to']->id }}, {{ $transfer['amountCents'] }})"
+                                        wire:confirm="{{ __('Mark this transfer as settled? This cannot be undone.') }}"
+                                        class="text-neutral-300 hover:text-white"
+                                    >
+                                        {{ __('Mark as settled') }}
+                                    </flux:button>
+                                @endif
+                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -470,6 +483,28 @@
                 <flux:callout variant="subtle">
                     <flux:text>{{ __('Everyone is settled up!') }}</flux:text>
                 </flux:callout>
+            @endif
+
+            @if ($this->recentSettlements->isNotEmpty())
+                <flux:subheading class="mt-6 mb-3">{{ __('Recent Settlements') }}</flux:subheading>
+                <div class="space-y-2">
+                    @foreach ($this->recentSettlements as $settlement)
+                        <div wire:key="settlement-{{ $settlement['id'] }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
+                            <flux:icon.check-circle class="h-4 w-4 text-green-500" />
+                            <div class="flex items-center gap-2">
+                                <flux:avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" size="xs" />
+                                <flux:text class="text-sm">{{ $settlement['from']->fullName() }}</flux:text>
+                            </div>
+                            <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
+                            <div class="flex items-center gap-2">
+                                <flux:avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" size="xs" />
+                                <flux:text class="text-sm">{{ $settlement['to']->fullName() }}</flux:text>
+                            </div>
+                            <flux:text class="ml-auto text-sm">${{ number_format($settlement['amountCents'] / 100, 2) }}</flux:text>
+                            <flux:badge color="green" size="sm">{{ __('Settled') }}</flux:badge>
+                        </div>
+                    @endforeach
+                </div>
             @endif
         @else
             <flux:callout variant="subtle">
