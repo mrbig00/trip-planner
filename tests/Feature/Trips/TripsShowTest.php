@@ -30,10 +30,10 @@ test('all locations show when none is accepted yet', function () {
     Volt::test('trips.show', ['trip' => $trip])
         ->assertSee('Option One')
         ->assertSee('Option Two')
-        ->assertDontSee('pending location');
+        ->assertDontSee('unvoted location');
 });
 
-test('once a location is accepted, pending locations collapse behind a toggle', function () {
+test('once a location is accepted, unvoted locations collapse behind a toggle', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     $accepted = Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Winner', 'accepted' => true]);
@@ -45,27 +45,27 @@ test('once a location is accepted, pending locations collapse behind a toggle', 
         ->assertSee('Winner')
         ->assertDontSee('Runner Up')
         ->assertDontSee('Also Ran')
-        ->assertSee('Show 2 pending locations');
+        ->assertSee('Show 2 unvoted locations');
 
     $component->call('toggleShowAllLocations')
         ->assertSee('Winner')
         ->assertSee('Runner Up')
         ->assertSee('Also Ran')
-        ->assertSee('Hide pending locations');
+        ->assertSee('Hide unvoted locations');
 
     $component->call('toggleShowAllLocations')
         ->assertDontSee('Runner Up')
         ->assertDontSee('Also Ran');
 });
 
-test('the pending-locations toggle does not appear when there is nothing to hide', function () {
+test('the unvoted-locations toggle does not appear when there is nothing to hide', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     Location::factory()->create(['trip_id' => $trip->id, 'accepted' => true]);
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->assertDontSee('pending location');
+        ->assertDontSee('unvoted location');
 });
 
 test('unrelated user cannot accept a location', function () {

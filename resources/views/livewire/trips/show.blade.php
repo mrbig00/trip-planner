@@ -313,9 +313,9 @@
                             class="text-xs text-neutral-400 hover:text-white"
                         >
                             @if ($showAllLocations)
-                                {{ __('Hide pending locations') }}
+                                {{ __('Hide unvoted locations') }}
                             @else
-                                {{ $pendingLocationCount === 1 ? __('Show 1 pending location') : __('Show :count pending locations', ['count' => $pendingLocationCount]) }}
+                                {{ $pendingLocationCount === 1 ? __('Show 1 unvoted location') : __('Show :count unvoted locations', ['count' => $pendingLocationCount]) }}
                             @endif
                         </flux:button>
                     @endif
