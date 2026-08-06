@@ -442,6 +442,14 @@ class Show extends Component
     }
 
     /**
+     * Get the trip's total spend across all expenses.
+     */
+    public function getTotalExpensesProperty(): float
+    {
+        return (float) $this->trip->expenses->sum('total');
+    }
+
+    /**
      * Get each trip member's balance, keyed for the Settle Up card.
      */
     public function getBalancesProperty(): Collection

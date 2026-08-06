@@ -1,4 +1,9 @@
 <div class="flex h-full w-full flex-1 flex-col gap-6">
+    <flux:link :href="route('trips.index')" wire:navigate class="text-sm text-neutral-400 hover:text-white inline-flex items-center gap-1">
+        <flux:icon.chevron-left class="h-4 w-4" />
+        {{ __('Trips') }}
+    </flux:link>
+
     <div class="flex items-start justify-between gap-4">
         <div class="flex-1 min-w-0">
             <flux:heading size="xl">{{ $trip->name }}</flux:heading>
@@ -14,6 +19,19 @@
                 <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
                     {{ $trip->created_at->format('M d, Y') }}
                 </flux:badge>
+            </div>
+            <div class="mt-3 flex items-center gap-3">
+                <div class="flex -space-x-2">
+                    @foreach ($trip->members() as $member)
+                        <flux:avatar
+                            :name="$member->fullName()"
+                            :initials="$member->initials()"
+                            size="xs"
+                            class="ring-2 ring-neutral-900"
+                        />
+                    @endforeach
+                </div>
+                <flux:badge size="sm">{{ __('Total') }}: ${{ number_format($this->totalExpenses, 2) }}</flux:badge>
             </div>
         </div>
         @if ($trip->user_id === Auth::id())
@@ -200,6 +218,7 @@
             @endif
         </div>
 
+        <div class="flex flex-col gap-6">
         <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg">{{ __('Expenses') }}</flux:heading>
@@ -255,6 +274,10 @@
                                     <td class="px-4 py-3">
                                         @if ($expense->description)
                                             <flux:text class="text-sm text-neutral-400 line-clamp-1">{{ $expense->description }}</flux:text>
+                                        @elseif ($canEditExpense)
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                                {{ __('+ Add description') }}
+                                            </button>
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -264,6 +287,10 @@
                                             <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-400 hover:text-blue-300">
                                                 {{ __('Open') }}
                                             </flux:link>
+                                        @elseif ($canEditExpense)
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                                {{ __('+ Add link') }}
+                                            </button>
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -322,15 +349,12 @@
                             @endforeach
                         </tbody>
                         <tfoot>
-                            @php
-                                $totalExpenses = $trip->expenses->sum('total');
-                            @endphp
                             <tr class="border-t-2 border-neutral-700 bg-neutral-800/30">
                                 <td class="px-4 py-3" colspan="4">
                                     <flux:text class="font-semibold">{{ __('Total') }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <flux:text class="font-semibold text-lg">${{ number_format($totalExpenses, 2) }}</flux:text>
+                                    <flux:text class="font-semibold text-lg">${{ number_format($this->totalExpenses, 2) }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3"></td>
                                 <td class="px-4 py-3"></td>
@@ -344,6 +368,51 @@
                     <flux:text>{{ __('No expenses added yet.') }}</flux:text>
                     </flux:callout>
             @endif
+        </div>
+
+        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <flux:heading size="lg">{{ __('Participants') }}</flux:heading>
+                <div class="flex items-center gap-2">
+                    <flux:badge>{{ $trip->participants->count() }}</flux:badge>
+                    @if ($trip->user_id === Auth::id())
+                        <flux:button variant="ghost" size="sm" wire:click="openAddParticipantModal">
+                            {{ __('Add Participant') }}
+                        </flux:button>
+                    @endif
+                </div>
+            </div>
+            @if ($trip->participants->count() > 0)
+                <div class="flex flex-wrap gap-3">
+                    @foreach ($trip->participants as $participant)
+                        <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                            <flux:avatar :name="$participant->fullName()" :initials="$participant->initials()" size="sm" />
+                            <flux:badge>{{ $participant->fullName() }}</flux:badge>
+                            @if ($trip->user_id === Auth::id())
+                                <flux:button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon-only
+                                    wire:click="removeParticipant({{ $participant->id }})"
+                                    wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
+                                    class="text-red-400/70 hover:text-red-400"
+                                    title="{{ __('Remove participant') }}"
+                                >
+                                    <flux:icon.x-mark class="h-4 w-4" />
+                                </flux:button>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <flux:callout variant="subtle">
+                    <flux:text>{{ __('No participants yet.') }}</flux:text>
+                    @if ($trip->user_id === Auth::id())
+                        <flux:text class="mt-2">{{ __('Click "Add Participant" to invite friends to your trip.') }}</flux:text>
+                    @endif
+                </flux:callout>
+            @endif
+        </div>
         </div>
     </div>
 
@@ -399,50 +468,6 @@
         @else
             <flux:callout variant="subtle">
                 <flux:text>{{ __('No expenses added yet.') }}</flux:text>
-            </flux:callout>
-        @endif
-    </div>
-
-    <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <flux:heading size="lg">{{ __('Participants') }}</flux:heading>
-            <div class="flex items-center gap-2">
-                <flux:badge>{{ $trip->participants->count() }}</flux:badge>
-                @if ($trip->user_id === Auth::id())
-                    <flux:button variant="ghost" size="sm" wire:click="openAddParticipantModal">
-                        {{ __('Add Participant') }}
-                    </flux:button>
-                @endif
-            </div>
-        </div>
-        @if ($trip->participants->count() > 0)
-            <div class="flex flex-wrap gap-3">
-                @foreach ($trip->participants as $participant)
-                    <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                        <flux:avatar :name="$participant->fullName()" :initials="$participant->initials()" size="sm" />
-                        <flux:badge>{{ $participant->fullName() }}</flux:badge>
-                        @if ($trip->user_id === Auth::id())
-                            <flux:button
-                                variant="ghost"
-                                size="sm"
-                                icon-only
-                                wire:click="removeParticipant({{ $participant->id }})"
-                                wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
-                                class="text-red-400/70 hover:text-red-400"
-                                title="{{ __('Remove participant') }}"
-                            >
-                                <flux:icon.x-mark class="h-4 w-4" />
-                            </flux:button>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        @else
-            <flux:callout variant="subtle">
-                <flux:text>{{ __('No participants yet.') }}</flux:text>
-                @if ($trip->user_id === Auth::id())
-                    <flux:text class="mt-2">{{ __('Click "Add Participant" to invite friends to your trip.') }}</flux:text>
-                @endif
             </flux:callout>
         @endif
     </div>
