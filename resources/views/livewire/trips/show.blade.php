@@ -61,6 +61,9 @@
             </div>
             @if ($trip->locations->contains(fn ($location) => $location->latitude && $location->longitude))
                 <flux:text class="text-[10px] opacity-50 -mt-3 mb-3 block">{{ __('Map thumbnails © OpenStreetMap contributors') }}</flux:text>
+                <div class="mb-4">
+                    <x-locations-map-widget :locations="$trip->locations" />
+                </div>
             @endif
             @if ($trip->locations->count() > 0)
                 <div class="space-y-3">

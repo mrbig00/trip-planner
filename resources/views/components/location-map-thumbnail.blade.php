@@ -15,12 +15,12 @@
     $lat = (float) $latitude;
     $lon = (float) $longitude;
     $zoom = (int) $zoom;
-    $tileSize = 256;
-    $tileCount = 2 ** $zoom;
+    $tileSize = \App\Support\WebMercator::TILE_SIZE;
+    $tileCount = \App\Support\WebMercator::tileCount($zoom);
 
-    $worldX = (($lon + 180) / 360) * $tileCount * $tileSize;
-    $latRad = deg2rad($lat);
-    $worldY = (1 - log(tan($latRad) + 1 / cos($latRad)) / M_PI) / 2 * $tileCount * $tileSize;
+    $world = \App\Support\WebMercator::toWorldPixel($lat, $lon, $zoom);
+    $worldX = $world['x'];
+    $worldY = $world['y'];
 
     $topLeftX = $worldX - $width / 2;
     $topLeftY = $worldY - $height / 2;
