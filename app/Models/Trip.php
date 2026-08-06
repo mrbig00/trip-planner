@@ -26,6 +26,7 @@ class Trip extends Model
         'user_id',
         'start_date',
         'end_date',
+        'budget',
     ];
 
     /**
@@ -38,6 +39,7 @@ class Trip extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'budget' => 'decimal:2',
         ];
     }
 

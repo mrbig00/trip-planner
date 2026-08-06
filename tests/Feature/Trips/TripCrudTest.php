@@ -233,3 +233,78 @@ test('trip update requires the end date to be on or after the start date', funct
         ->call('update')
         ->assertHasErrors(['end_date']);
 });
+
+test('trip budget is optional and defaults to null on creation', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    Volt::test('trips.create')
+        ->set('name', 'Budgetless Trip')
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $trip = Trip::where('name', 'Budgetless Trip')->first();
+    expect($trip->budget)->toBeNull();
+});
+
+test('users can create a trip with a budget', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    Volt::test('trips.create')
+        ->set('name', 'Budgeted Trip')
+        ->set('budget', '1500.50')
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $trip = Trip::where('name', 'Budgeted Trip')->first();
+    expect((string) $trip->budget)->toBe('1500.50');
+});
+
+test('trip creation rejects a negative budget', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    Volt::test('trips.create')
+        ->set('name', 'Negative Budget Trip')
+        ->set('budget', '-10')
+        ->call('store')
+        ->assertHasErrors(['budget']);
+
+    expect(Trip::where('name', 'Negative Budget Trip')->exists())->toBeFalse();
+});
+
+test('editing a trip hydrates its existing budget', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id, 'budget' => 2000]);
+    $this->actingAs($user);
+
+    Volt::test('trips.edit', ['trip' => $trip])
+        ->assertSet('budget', '2000.00');
+});
+
+test('editing a trip preserves a null budget when none is set', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id, 'budget' => null]);
+    $this->actingAs($user);
+
+    Volt::test('trips.edit', ['trip' => $trip])
+        ->assertSet('budget', null)
+        ->call('update')
+        ->assertHasNoErrors();
+
+    expect($trip->fresh()->budget)->toBeNull();
+});
+
+test('users can update a trip\'s budget', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id, 'budget' => null]);
+    $this->actingAs($user);
+
+    Volt::test('trips.edit', ['trip' => $trip])
+        ->set('budget', '999.99')
+        ->call('update')
+        ->assertRedirect(route('trips.show', $trip));
+
+    expect((string) $trip->fresh()->budget)->toBe('999.99');
+});
