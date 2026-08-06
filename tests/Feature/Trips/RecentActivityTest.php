@@ -67,3 +67,63 @@ test('recent activity is capped at 5 events', function () {
 
     expect($activity)->toHaveCount(5);
 });
+
+test('recent activity shows the amount on an added expense and adds an edited event once one is saved', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'name' => 'Hotel',
+        'unit_price' => 100,
+        'quantity' => 1,
+    ]);
+    $expense->shares()->create(['user_id' => $owner->id, 'amount' => $expense->total]);
+
+    $this->actingAs($owner);
+    $component = Volt::test('trips.show', ['trip' => $trip]);
+
+    $added = $component->get('recentActivity')->firstWhere('type', 'expense');
+    expect($added['text'])->toContain('Hotel')->toContain('100.00');
+
+    $component->set('editingExpense', [
+        'name' => 'Hotel', 'description' => '', 'link' => '',
+        'unit_price' => '150', 'quantity' => 1, 'user_id' => $owner->id,
+        'split_type' => 'equal', 'participant_ids' => [$owner->id],
+        'percentages' => [], 'fixed_amounts' => [],
+    ])->call('saveExpense', $expense->id);
+
+    $activity = $component->get('recentActivity');
+    $edited = $activity->firstWhere('type', 'expense_edited');
+
+    expect($edited)->not->toBeNull();
+    expect($edited['user']->id)->toBe($owner->id);
+    expect($edited['text'])->toContain('Hotel')->toContain('150.00');
+});
+
+test('recent activity shows a deleted-expense event attributed to whoever deleted it', function () {
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $trip->participants()->attach($participant->id);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $participant->id,
+        'name' => 'Rental Car',
+        'unit_price' => 200,
+        'quantity' => 1,
+    ]);
+    $expense->shares()->create(['user_id' => $participant->id, 'amount' => $expense->total]);
+
+    // The trip creator (not the expense's owner) is the one who deletes it.
+    $this->actingAs($owner);
+    $component = Volt::test('trips.show', ['trip' => $trip])->call('deleteExpense', $expense->id);
+
+    $activity = $component->get('recentActivity');
+    $deleted = $activity->firstWhere('type', 'expense_deleted');
+
+    expect($deleted)->not->toBeNull();
+    expect($deleted['user']->id)->toBe($owner->id);
+    expect($deleted['text'])->toContain('Rental Car')->toContain('200.00');
+    expect($activity->firstWhere('type', 'expense'))->toBeNull(); // deleted expenses don't also show an "added" event
+});

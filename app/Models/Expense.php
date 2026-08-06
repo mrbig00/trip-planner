@@ -3,15 +3,18 @@
 namespace App\Models;
 
 use App\Enums\ExpenseSplitType;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Expense extends Model
 {
     /** @use HasFactory<\Database\Factories\ExpenseFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -26,6 +29,8 @@ class Expense extends Model
         'quantity',
         'trip_id',
         'user_id',
+        'updated_by',
+        'deleted_by',
         'split_type',
     ];
 
@@ -40,6 +45,7 @@ class Expense extends Model
             'unit_price' => 'decimal:2',
             'quantity' => 'integer',
             'split_type' => ExpenseSplitType::class,
+            'deleted_at' => 'datetime',
         ];
     }
 
@@ -65,6 +71,22 @@ class Expense extends Model
     public function shares(): HasMany
     {
         return $this->hasMany(ExpenseShare::class);
+    }
+
+    /**
+     * Get the user who last edited this expense, if any.
+     */
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * Get the user who deleted this expense, if any.
+     */
+    public function deletedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
     }
 
     /**

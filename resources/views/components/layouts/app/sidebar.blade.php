@@ -23,16 +23,6 @@
 
             <flux:spacer />
 
-            <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
-                </flux:sidebar.item>
-            </flux:sidebar.nav>
-
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->fullName()" />
 
             <flux:text size="sm" class="hidden justify-center text-center text-zinc-400 lg:flex dark:text-zinc-500">
@@ -53,6 +43,7 @@
             <flux:dropdown position="top" align="end">
                 <flux:profile
                     :initials="auth()->user()->initials()"
+                    :avatar="auth()->user()->avatarUrl()"
                     icon-trailing="chevron-down"
                 />
 
@@ -63,6 +54,7 @@
                                 <flux:avatar
                                     :name="auth()->user()->fullName()"
                                     :initials="auth()->user()->initials()"
+                                    :src="auth()->user()->avatarUrl()"
                                 />
 
                                 <div class="grid flex-1 text-start text-sm leading-tight">

@@ -17,6 +17,11 @@
         7 => 'ring-2 ring-[var(--color-participant-7)]',
         default => '',
     };
+
+    // Dicebear generates a stable illustrated avatar from the participant's
+    // name, so everyone gets a distinct, friendly face instead of a flat
+    // initials badge. Same name in, same avatar out — no image storage needed.
+    $avatarUrl = $name ? 'https://api.dicebear.com/9.x/avataaars/svg?seed=' . urlencode($name) : null;
 @endphp
 
-<flux:avatar :name="$name" :initials="$initials" :size="$size" {{ $attributes->class([$ring]) }} />
+<flux:avatar :name="$name" :initials="$initials" :src="$avatarUrl" :size="$size" {{ $attributes->class([$ring]) }} />

@@ -86,6 +86,8 @@
                 'vote' => 'heart',
                 'accepted' => 'check-circle',
                 'expense' => 'currency-dollar',
+                'expense_edited' => 'pencil',
+                'expense_deleted' => 'trash',
                 'settlement' => 'check-badge',
             };
         @endphp

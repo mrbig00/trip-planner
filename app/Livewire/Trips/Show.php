@@ -338,6 +338,7 @@ class Show extends Component
             abort(403);
         }
 
+        $expense->update(['deleted_by' => Auth::id()]);
         $expense->delete();
 
         $this->trip->refresh();
@@ -442,6 +443,7 @@ class Show extends Component
                 'unit_price' => $validated['editingExpense']['unit_price'],
                 'quantity' => $validated['editingExpense']['quantity'],
                 'user_id' => $validated['editingExpense']['user_id'],
+                'updated_by' => Auth::id(),
                 'split_type' => $splitType->value,
             ]);
 
@@ -471,18 +473,20 @@ class Show extends Component
 
     /**
      * Get the trip's most recent activity, merged from every already-timestamped
-     * source (no new tables beyond the accepted_at column added for this):
-     * location comments, votes (pivot timestamps), location acceptance, expenses,
-     * and settlements. Newest first, capped at 5.
+     * source: location comments, votes (pivot timestamps), location acceptance,
+     * expenses (added/edited/deleted), and settlements. Newest first, capped at 5.
      *
      * Location proposals have no attributable "who added this" column in the
      * data model (locations.user_id doesn't exist), so unlike the other event
      * types, "accepted" events render without an actor — an honest reflection
-     * of what's actually recorded, not a guess.
+     * of what's actually recorded, not a guess. Expense edits/deletes are the
+     * same way: they render actor-less unless updated_by/deleted_by was
+     * actually recorded (it always is going forward, via saveExpense/deleteExpense).
      */
     public function getRecentActivityProperty(): Collection
     {
         $events = collect();
+        $members = $this->trip->members()->keyBy('id');
 
         foreach ($this->trip->locations as $location) {
             foreach ($location->comments as $comment) {
@@ -514,18 +518,47 @@ class Show extends Component
         }
 
         foreach ($this->trip->expenses as $expense) {
+            $amount = number_format($expense->total, 2);
+
             $events->push([
                 'type' => 'expense',
                 'at' => $expense->created_at,
                 'user' => $expense->owner,
                 'text' => $expense->owner
-                    ? __(':user added expense :expense', ['user' => $expense->owner->fullName(), 'expense' => $expense->name])
-                    : __('Expense added: :expense', ['expense' => $expense->name]),
+                    ? __(':user added expense :expense ($:amount)', ['user' => $expense->owner->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense added: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+            ]);
+
+            // updated_by is only ever set by saveExpense(), never on creation,
+            // so its presence alone tells us the expense has been edited since.
+            if ($expense->updated_by) {
+                $editor = $members->get($expense->updated_by);
+                $events->push([
+                    'type' => 'expense_edited',
+                    'at' => $expense->updated_at,
+                    'user' => $editor,
+                    'text' => $editor
+                        ? __(':user edited expense :expense ($:amount)', ['user' => $editor->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                        : __('Expense edited: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                ]);
+            }
+        }
+
+        foreach ($this->trip->expenses()->onlyTrashed()->get() as $expense) {
+            $amount = number_format($expense->total, 2);
+            $deleter = $members->get($expense->deleted_by);
+
+            $events->push([
+                'type' => 'expense_deleted',
+                'at' => $expense->deleted_at,
+                'user' => $deleter,
+                'text' => $deleter
+                    ? __(':user deleted expense :expense ($:amount)', ['user' => $deleter->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense deleted: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
             ]);
         }
 
         foreach ($this->trip->settlements as $settlement) {
-            $members = $this->trip->members()->keyBy('id');
             $from = $members->get($settlement->from_user_id);
             $to = $members->get($settlement->to_user_id);
 
