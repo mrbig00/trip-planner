@@ -6,6 +6,7 @@ namespace App\Livewire\Trips;
 
 use App\Models\Trip;
 use App\Models\User;
+use App\Support\Money;
 use Livewire\Component;
 use Illuminate\View\View;
 use App\Models\Settlement;
@@ -454,6 +455,34 @@ class Show extends Component
     public function getTotalExpensesProperty(): float
     {
         return (float) $this->trip->expenses->sum('total');
+    }
+
+    /**
+     * Get each trip member's share of total spending, for the Cost Breakdown
+     * chart. Uses each expense's shares (who's responsible for how much),
+     * not who fronted the cash — the shares always sum exactly to each
+     * expense's total (see App\Actions\Expenses\BuildExpenseShares), so this
+     * always reconciles with getTotalExpensesProperty().
+     */
+    public function getCostBreakdownProperty(): Collection
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return $this->trip->expenses
+            ->flatMap->shares
+            ->groupBy('user_id')
+            ->map(function ($shares, $userId) use ($members) {
+                $user = $members->get((int) $userId);
+
+                return [
+                    'user' => $user,
+                    'amountCents' => $shares->sum(fn ($share) => Money::toCents((string) $share->amount)),
+                    'slot' => $user ? $this->trip->colorSlotFor($user) : null,
+                ];
+            })
+            ->filter(fn ($row) => $row['user'] !== null)
+            ->sortByDesc('amountCents')
+            ->values();
     }
 
     /**

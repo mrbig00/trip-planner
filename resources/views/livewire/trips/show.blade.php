@@ -382,6 +382,47 @@
                         </tfoot>
                     </table>
                 </div>
+
+                @if ($this->costBreakdown->isNotEmpty())
+                    @php
+                        // Canvas drawing doesn't follow CSS dark: variants, so these are
+                        // the literal dark-tuned hexes from app.css's .dark override —
+                        // matching the existing (also non-adaptive) bar chart convention.
+                        $breakdownColor = fn ($slot) => match ($slot) {
+                            1 => '#3987e5',
+                            2 => '#d95926',
+                            3 => '#199e70',
+                            5 => '#d55181',
+                            7 => '#9085e9',
+                            default => '#71717a',
+                        };
+                    @endphp
+                    <div class="mt-6 pt-6 border-t border-neutral-700/50">
+                        <flux:subheading class="mb-3">{{ __('Cost Breakdown') }}</flux:subheading>
+                        <div class="flex flex-col sm:flex-row items-center gap-6">
+                            <div
+                                class="relative h-44 w-44 shrink-0"
+                                x-data="doughnutChart({
+                                    labels: @js($this->costBreakdown->pluck('user')->map->fullName()),
+                                    data: @js($this->costBreakdown->pluck('amountCents')->map(fn ($cents) => $cents / 100)),
+                                    colors: @js($this->costBreakdown->pluck('slot')->map($breakdownColor)),
+                                    valuePrefix: '$',
+                                })"
+                            >
+                                <canvas x-ref="canvas"></canvas>
+                            </div>
+                            <div class="flex-1 w-full space-y-2">
+                                @foreach ($this->costBreakdown as $row)
+                                    <div class="flex items-center gap-2">
+                                        <span class="h-3 w-3 rounded-full shrink-0" style="background-color: {{ $breakdownColor($row['slot']) }}"></span>
+                                        <flux:text class="text-sm flex-1">{{ $row['user']->fullName() }}</flux:text>
+                                        <flux:text class="text-sm font-medium">${{ number_format($row['amountCents'] / 100, 2) }}</flux:text>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
             @else
                 <flux:callout variant="subtle">
                     <flux:text>{{ __('No expenses added yet.') }}</flux:text>

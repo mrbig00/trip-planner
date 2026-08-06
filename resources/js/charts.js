@@ -74,4 +74,48 @@ document.addEventListener('alpine:init', () => {
             this.chart?.destroy();
         },
     }));
+
+    Alpine.data('doughnutChart', ({ labels, data, colors, valuePrefix = '' }) => ({
+        chart: null,
+
+        init() {
+            this.chart = new Chart(this.$refs.canvas, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data,
+                        backgroundColor: colors,
+                        borderColor: tooltipBackground,
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        // A custom HTML legend (name + exact amount) is rendered
+                        // alongside the canvas instead — see the Cost Breakdown
+                        // section in trips/show.blade.php.
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: tooltipBackground,
+                            titleColor: '#e4e4e7',
+                            bodyColor: '#ffffff',
+                            padding: 10,
+                            cornerRadius: 6,
+                            callbacks: {
+                                label: (context) => `${context.label}: ${formatValue(valuePrefix, context.parsed)}`,
+                            },
+                        },
+                    },
+                },
+            });
+        },
+
+        destroy() {
+            this.chart?.destroy();
+        },
+    }));
 });
