@@ -116,6 +116,37 @@ class Trip extends Model
     }
 
     /**
+     * Get a short "where this trip stands in time" label for the header
+     * chip, or null when neither date is set (the chip simply doesn't
+     * render — no fabricated threshold).
+     */
+    public function countdownLabel(): ?string
+    {
+        if (! $this->start_date && ! $this->end_date) {
+            return null;
+        }
+
+        $today = today();
+
+        if ($this->end_date && $today->greaterThan($this->end_date)) {
+            return __('Trip ended');
+        }
+
+        if ($this->start_date && $today->equalTo($this->start_date)) {
+            return __('Starting today');
+        }
+
+        if ($this->start_date && $today->lessThan($this->start_date)) {
+            $days = (int) $today->diffInDays($this->start_date);
+            $unit = $days === 1 ? __('day') : __('days');
+
+            return __(':days :unit to go', ['days' => $days, 'unit' => $unit]);
+        }
+
+        return __('Happening now');
+    }
+
+    /**
      * Calculate each member's balance in integer cents: positive means the
      * member is owed money, negative means the member owes money. Requires
      * `expenses.shares` to be eager-loaded. Nets out recorded settlements, so

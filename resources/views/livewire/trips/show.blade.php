@@ -32,6 +32,11 @@
                     @endforeach
                 </div>
                 <flux:badge size="sm">{{ __('Total') }}: ${{ number_format($this->totalExpenses, 2) }}</flux:badge>
+                @if ($trip->countdownLabel())
+                    <flux:badge size="sm" variant="ghost" class="bg-neutral-700/50 text-neutral-300">
+                        {{ $trip->countdownLabel() }}
+                    </flux:badge>
+                @endif
             </div>
             @if ($trip->budget !== null)
                 @php
