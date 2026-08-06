@@ -79,6 +79,41 @@
         @endif
     </div>
 
+    @if ($this->recentActivity->isNotEmpty())
+        @php
+            $activityIcon = fn ($type) => match ($type) {
+                'comment' => 'chat-bubble-left',
+                'vote' => 'heart',
+                'accepted' => 'check-circle',
+                'expense' => 'currency-dollar',
+                'settlement' => 'check-badge',
+            };
+        @endphp
+        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+            <flux:heading size="lg" class="mb-4">{{ __('Recent Activity') }}</flux:heading>
+            <div class="space-y-3">
+                @foreach ($this->recentActivity as $event)
+                    <div wire:key="activity-{{ $loop->index }}" class="flex items-center gap-3">
+                        @if ($event['user'])
+                            <x-participant-avatar
+                                :name="$event['user']->fullName()"
+                                :initials="$event['user']->initials()"
+                                :slot="$trip->colorSlotFor($event['user'])"
+                                size="xs"
+                            />
+                        @else
+                            <div class="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-700/50 shrink-0">
+                                <flux:icon :icon="$activityIcon($event['type'])" class="h-3.5 w-3.5 text-neutral-400" />
+                            </div>
+                        @endif
+                        <flux:text class="text-sm flex-1">{{ $event['text'] }}</flux:text>
+                        <flux:text class="text-xs text-neutral-500 shrink-0">{{ $event['at']->diffForHumans() }}</flux:text>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     <div class="grid gap-6 md:grid-cols-2">
         <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
             <div class="flex items-center justify-between mb-4">

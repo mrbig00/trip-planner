@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Location extends Model
 {
@@ -26,6 +26,7 @@ class Location extends Model
         'link',
         'picture',
         'accepted',
+        'accepted_at',
         'trip_id',
     ];
 
@@ -41,6 +42,7 @@ class Location extends Model
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
             'accepted' => 'boolean',
+            'accepted_at' => 'datetime',
         ];
     }
 
@@ -75,10 +77,10 @@ class Location extends Model
     public function accept(): void
     {
         // Unaccept all locations in this trip
-        $this->trip->locations()->where('id', '!=', $this->id)->update(['accepted' => false]);
+        $this->trip->locations()->where('id', '!=', $this->id)->update(['accepted' => false, 'accepted_at' => null]);
 
         // Accept this location
-        $this->update(['accepted' => true]);
+        $this->update(['accepted' => true, 'accepted_at' => now()]);
     }
 
     /**

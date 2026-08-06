@@ -458,6 +458,83 @@ class Show extends Component
     }
 
     /**
+     * Get the trip's most recent activity, merged from every already-timestamped
+     * source (no new tables beyond the accepted_at column added for this):
+     * location comments, votes (pivot timestamps), location acceptance, expenses,
+     * and settlements. Newest first, capped at 5.
+     *
+     * Location proposals have no attributable "who added this" column in the
+     * data model (locations.user_id doesn't exist), so unlike the other event
+     * types, "accepted" events render without an actor — an honest reflection
+     * of what's actually recorded, not a guess.
+     */
+    public function getRecentActivityProperty(): Collection
+    {
+        $events = collect();
+
+        foreach ($this->trip->locations as $location) {
+            foreach ($location->comments as $comment) {
+                $events->push([
+                    'type' => 'comment',
+                    'at' => $comment->created_at,
+                    'user' => $comment->user,
+                    'text' => __(':user commented on :location', ['user' => $comment->user->fullName(), 'location' => $location->name]),
+                ]);
+            }
+
+            foreach ($location->votes as $voter) {
+                $events->push([
+                    'type' => 'vote',
+                    'at' => $voter->pivot->created_at,
+                    'user' => $voter,
+                    'text' => __(':user voted for :location', ['user' => $voter->fullName(), 'location' => $location->name]),
+                ]);
+            }
+
+            if ($location->accepted_at) {
+                $events->push([
+                    'type' => 'accepted',
+                    'at' => $location->accepted_at,
+                    'user' => null,
+                    'text' => __(':location was accepted', ['location' => $location->name]),
+                ]);
+            }
+        }
+
+        foreach ($this->trip->expenses as $expense) {
+            $events->push([
+                'type' => 'expense',
+                'at' => $expense->created_at,
+                'user' => $expense->owner,
+                'text' => $expense->owner
+                    ? __(':user added expense :expense', ['user' => $expense->owner->fullName(), 'expense' => $expense->name])
+                    : __('Expense added: :expense', ['expense' => $expense->name]),
+            ]);
+        }
+
+        foreach ($this->trip->settlements as $settlement) {
+            $members = $this->trip->members()->keyBy('id');
+            $from = $members->get($settlement->from_user_id);
+            $to = $members->get($settlement->to_user_id);
+
+            if ($from && $to) {
+                $events->push([
+                    'type' => 'settlement',
+                    'at' => $settlement->created_at,
+                    'user' => $from,
+                    'text' => __(':from settled $:amount with :to', [
+                        'from' => $from->fullName(),
+                        'amount' => number_format($settlement->amount_cents / 100, 2),
+                        'to' => $to->fullName(),
+                    ]),
+                ]);
+            }
+        }
+
+        return $events->sortByDesc('at')->take(5)->values();
+    }
+
+    /**
      * Get each trip member's share of total spending, for the Cost Breakdown
      * chart. Uses each expense's shares (who's responsible for how much),
      * not who fronted the cash — the shares always sum exactly to each
