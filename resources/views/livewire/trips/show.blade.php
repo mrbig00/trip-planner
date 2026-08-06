@@ -59,6 +59,9 @@
                     @endif
                 </div>
             </div>
+            @if ($trip->locations->contains(fn ($location) => $location->latitude && $location->longitude))
+                <flux:text class="text-[10px] opacity-50 -mt-3 mb-3 block">{{ __('Map thumbnails © OpenStreetMap contributors') }}</flux:text>
+            @endif
             @if ($trip->locations->count() > 0)
                 <div class="space-y-3">
                     @foreach ($trip->locations as $location)
@@ -89,9 +92,12 @@
                                         </flux:text>
                                     @endif
                                     @if ($location->latitude && $location->longitude)
-                                        <flux:text class="text-xs mt-1 opacity-70">
-                                            {{ number_format($location->latitude, 6) }}, {{ number_format($location->longitude, 6) }}
-                                        </flux:text>
+                                        <div class="mt-2">
+                                            <x-location-map-thumbnail :latitude="$location->latitude" :longitude="$location->longitude" width="140" height="100" />
+                                            <flux:text class="text-[11px] mt-1 opacity-60">
+                                                {{ number_format($location->latitude, 6) }}, {{ number_format($location->longitude, 6) }}
+                                            </flux:text>
+                                        </div>
                                     @endif
                                     @if ($location->link)
                                         <flux:link :href="$location->link" target="_blank" class="text-xs mt-1 text-blue-400 hover:text-blue-300">
