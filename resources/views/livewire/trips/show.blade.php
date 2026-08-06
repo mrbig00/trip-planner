@@ -127,15 +127,23 @@
                     @endif
                 </div>
             </div>
-            @if ($trip->locations->contains(fn ($location) => $location->latitude && $location->longitude))
+            @php
+                // Once one location is accepted, it's the only one shown by
+                // default — the rest stay collapsed behind the toggle below
+                // until asked for. With nothing accepted yet, everyone still
+                // needs to see (and vote on) every option, so show them all.
+                $hasAcceptedLocation = $trip->locations->contains('accepted', true);
+                $pendingLocationCount = $trip->locations->where('accepted', false)->count();
+                $visibleLocations = $hasAcceptedLocation && ! $showAllLocations
+                    ? $trip->locations->where('accepted', true)
+                    : $trip->locations;
+            @endphp
+            @if ($visibleLocations->contains(fn ($location) => $location->latitude && $location->longitude))
                 <flux:text class="text-[10px] opacity-50 -mt-3 mb-3 block">{{ __('Map thumbnails © OpenStreetMap contributors') }}</flux:text>
-                <div class="mb-4">
-                    <x-locations-map-widget :locations="$trip->locations" />
-                </div>
             @endif
             @if ($trip->locations->count() > 0)
                 <div class="space-y-3">
-                    @foreach ($trip->locations as $location)
+                    @foreach ($visibleLocations->sortByDesc('accepted')->values() as $location)
                             <div wire:key="location-{{ $location->id }}" class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
@@ -296,6 +304,21 @@
                             </div>
                         </div>
                     @endforeach
+
+                    @if ($hasAcceptedLocation && $pendingLocationCount > 0)
+                        <flux:button
+                            variant="ghost"
+                            size="sm"
+                            wire:click="toggleShowAllLocations"
+                            class="text-xs text-neutral-400 hover:text-white"
+                        >
+                            @if ($showAllLocations)
+                                {{ __('Hide pending locations') }}
+                            @else
+                                {{ $pendingLocationCount === 1 ? __('Show 1 pending location') : __('Show :count pending locations', ['count' => $pendingLocationCount]) }}
+                            @endif
+                        </flux:button>
+                    @endif
                 </div>
             @else
                 <flux:callout variant="subtle">
@@ -723,7 +746,7 @@
                         @foreach ($this->searchableUsers as $user)
                             <div class="flex items-center justify-between gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-800/50 transition-colors">
                                 <div class="flex items-center gap-3 flex-1">
-                                    <flux:avatar
+                                    <x-participant-avatar
                                         :name="$user->fullName()"
                                         :initials="$user->initials()"
                                         size="sm"

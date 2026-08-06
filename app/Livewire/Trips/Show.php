@@ -53,6 +53,8 @@ class Show extends Component
 
     public ?int $expandedLocationId = null;
 
+    public bool $showAllLocations = false;
+
     public bool $showAddCommentModal = false;
 
     public ?int $selectedLocationIdForComment = null;
@@ -312,6 +314,16 @@ class Show extends Component
         } else {
             $this->expandedLocationId = $locationId;
         }
+    }
+
+    /**
+     * Toggle whether pending (not-yet-accepted) locations are shown. Once a
+     * location is accepted, it's the only one shown by default — the rest
+     * stay collapsed behind this toggle until asked for.
+     */
+    public function toggleShowAllLocations(): void
+    {
+        $this->showAllLocations = ! $this->showAllLocations;
     }
 
     /**
