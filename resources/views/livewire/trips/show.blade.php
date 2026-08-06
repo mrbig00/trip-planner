@@ -21,7 +21,7 @@
                 <flux:button variant="ghost" :href="route('trips.edit', $trip)" wire:navigate>
                     {{ __('Edit') }}
                 </flux:button>
-                <flux:button variant="ghost" wire:click="delete" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
+                <flux:button variant="danger" wire:click="delete" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
                     {{ __('Delete') }}
                 </flux:button>
             </div>
@@ -54,15 +54,15 @@
                                             $hasVoted = $location->hasVoteFrom(Auth::user());
                                         @endphp
                                         @if ($voteCount > 0)
-                                            <flux:button
-                                                variant="ghost"
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 wire:click="showVoters({{ $location->id }})"
-                                                class="bg-neutral-700/50 text-neutral-300 hover:bg-neutral-700 hover:text-white h-auto py-1 px-2"
+                                                title="{{ __('View voters') }}"
+                                                class="inline-flex items-center gap-1 rounded-full bg-neutral-700/50 text-neutral-400 text-xs px-2 py-0.5 hover:text-neutral-200 cursor-pointer"
                                             >
-                                                <flux:icon.heart class="h-3 w-3" />
+                                                <flux:icon.heart variant="mini" class="h-3 w-3" />
                                                 {{ $voteCount }}
-                                            </flux:button>
+                                            </button>
                                         @endif
                                     </div>
                                     @if ($location->price)
@@ -83,25 +83,28 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                 <flux:button
-                                    variant="{{ $hasVoted ? 'primary' : 'ghost' }}"
+                                    variant="ghost"
                                     size="sm"
                                     wire:click="toggleVote({{ $location->id }})"
-                                    class="{{ $hasVoted ? '' : 'text-neutral-300 hover:text-white' }}"
+                                    class="{{ $hasVoted ? 'text-rose-500 hover:text-rose-400' : 'text-neutral-300 hover:text-white' }}"
                                 >
-                                    <flux:icon.heart class="h-4 w-4" />
+                                    <flux:icon.heart variant="{{ $hasVoted ? 'solid' : 'outline' }}" class="h-4 w-4" />
                                     {{ $hasVoted ? __('Voted') : __('Vote') }}
                                 </flux:button>
                                 @if ($location->accepted)
-                                    <flux:badge variant="success">{{ __('Accepted') }}</flux:badge>
-                                @elseif ($trip->user_id === Auth::id())
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        wire:click="acceptLocation({{ $location->id }})"
-                                        class="text-neutral-300 hover:text-white"
-                                    >
-                                        {{ __('Accept') }}
-                                    </flux:button>
+                                    <flux:badge color="green">{{ __('Accepted') }}</flux:badge>
+                                @else
+                                    <flux:badge color="amber">{{ __('Pending') }}</flux:badge>
+                                    @if ($trip->user_id === Auth::id())
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            wire:click="acceptLocation({{ $location->id }})"
+                                            class="text-neutral-300 hover:text-white"
+                                        >
+                                            {{ __('Accept') }}
+                                        </flux:button>
+                                    @endif
                                 @endif
                                 @if ($trip->user_id === Auth::id())
                                     <flux:dropdown>
@@ -112,7 +115,7 @@
                                             <flux:menu.item :href="route('locations.edit', [$trip, $location])" wire:navigate>
                                                 {{ __('Edit') }}
                                             </flux:menu.item>
-                                            <flux:menu.item wire:click="deleteLocation({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this location?') }}">
+                                            <flux:menu.item variant="danger" wire:click="deleteLocation({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this location?') }}">
                                                 {{ __('Delete') }}
                                             </flux:menu.item>
                                         </flux:menu>
@@ -166,7 +169,7 @@
                                                             icon-only
                                                             wire:click="deleteComment({{ $comment->id }})"
                                                             wire:confirm="{{ __('Are you sure you want to delete this comment?') }}"
-                                                            class="text-neutral-400 hover:text-red-400"
+                                                            class="text-red-400/70 hover:text-red-400"
                                                             title="{{ __('Delete comment') }}"
                                                         >
                                                             <flux:icon.x-mark class="h-3 w-3" />
@@ -307,7 +310,7 @@
                                                     icon-only
                                                     wire:click="deleteExpense({{ $expense->id }})"
                                                     wire:confirm="{{ __('Are you sure you want to delete this expense?') }}"
-                                                    class="text-neutral-400 hover:text-red-400"
+                                                    class="text-red-400/70 hover:text-red-400"
                                                     title="{{ __('Delete') }}"
                                                 >
                                                     <flux:icon.x-mark class="h-4 w-4" />
@@ -425,7 +428,7 @@
                                 icon-only
                                 wire:click="removeParticipant({{ $participant->id }})"
                                 wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
-                                class="text-neutral-400 hover:text-red-400"
+                                class="text-red-400/70 hover:text-red-400"
                                 title="{{ __('Remove participant') }}"
                             >
                                 <flux:icon.x-mark class="h-4 w-4" />
