@@ -355,7 +355,7 @@
                 <flux:subheading class="mb-3">{{ __('Balances') }}</flux:subheading>
                 <div class="flex flex-wrap gap-3">
                     @foreach ($this->balances as $balance)
-                        <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div wire:key="balance-{{ $balance['user']->id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
                             <flux:avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" size="sm" />
                             <flux:text class="text-sm">{{ $balance['user']->fullName() }}</flux:text>
                             @if ($balance['balanceCents'] > 0)
@@ -374,7 +374,7 @@
             @if (count($this->settlementTransfers) > 0)
                 <div class="space-y-2">
                     @foreach ($this->settlementTransfers as $transfer)
-                        <div class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
+                        <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
                             <div class="flex items-center gap-2">
                                 <flux:avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" size="xs" />
                                 <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
@@ -706,12 +706,15 @@
 
             <flux:separator />
 
-            <flux:checkbox.group wire:model="editingExpense.participant_ids" :label="__('Split between')">
+            <flux:checkbox.group wire:model.live="editingExpense.participant_ids" :label="__('Split between')">
                 @foreach ($trip->members() as $member)
-                    <flux:checkbox value="{{ $member->id }}" :label="$member->fullName()" />
+                    <flux:checkbox wire:key="split-participant-{{ $member->id }}" value="{{ $member->id }}" :label="$member->fullName()" />
                 @endforeach
             </flux:checkbox.group>
-            @error('participant_ids')
+            @error('editingExpense.participant_ids')
+                <flux:error>{{ $message }}</flux:error>
+            @enderror
+            @error('editingExpense.participant_ids.*')
                 <flux:error>{{ $message }}</flux:error>
             @enderror
 
@@ -733,7 +736,7 @@
             @if (($editingExpense['split_type'] ?? 'equal') === 'percentage')
                 <div class="space-y-2">
                     @foreach ($editSelectedMembers as $member)
-                        <div class="flex items-center gap-3">
+                        <div wire:key="split-percentage-{{ $member->id }}" class="flex items-center gap-3">
                             <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
                             <flux:input
                                 wire:model.live="editingExpense.percentages.{{ $member->id }}"
@@ -757,7 +760,7 @@
             @elseif (($editingExpense['split_type'] ?? 'equal') === 'fixed')
                 <div class="space-y-2">
                     @foreach ($editSelectedMembers as $member)
-                        <div class="flex items-center gap-3">
+                        <div wire:key="split-fixed-{{ $member->id }}" class="flex items-center gap-3">
                             <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
                             <flux:input
                                 wire:model.live="editingExpense.fixed_amounts.{{ $member->id }}"

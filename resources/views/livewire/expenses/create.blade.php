@@ -192,9 +192,9 @@ new class extends Component {
 
             <flux:separator />
 
-            <flux:checkbox.group wire:model="participant_ids" :label="__('Split between')">
+            <flux:checkbox.group wire:model.live="participant_ids" :label="__('Split between')">
                 @foreach ($trip->members() as $member)
-                    <flux:checkbox value="{{ $member->id }}" :label="$member->fullName()" />
+                    <flux:checkbox wire:key="split-participant-{{ $member->id }}" value="{{ $member->id }}" :label="$member->fullName()" />
                 @endforeach
             </flux:checkbox.group>
             @error('participant_ids')
@@ -216,7 +216,7 @@ new class extends Component {
             @if ($split_type === 'percentage')
                 <div class="space-y-2">
                     @foreach ($selectedMembers as $member)
-                        <div class="flex items-center gap-3">
+                        <div wire:key="split-percentage-{{ $member->id }}" class="flex items-center gap-3">
                             <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
                             <flux:input
                                 wire:model.live="percentages.{{ $member->id }}"
@@ -240,7 +240,7 @@ new class extends Component {
             @elseif ($split_type === 'fixed')
                 <div class="space-y-2">
                     @foreach ($selectedMembers as $member)
-                        <div class="flex items-center gap-3">
+                        <div wire:key="split-fixed-{{ $member->id }}" class="flex items-center gap-3">
                             <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
                             <flux:input
                                 wire:model.live="fixed_amounts.{{ $member->id }}"

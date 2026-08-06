@@ -348,7 +348,7 @@ class Show extends Component
             'participant_ids' => $expense->shares->isNotEmpty()
                 ? $expense->shares->pluck('user_id')->all()
                 : $this->trip->members()->pluck('id')->all(),
-            'percentages' => $expense->shares->pluck('percentage', 'user_id')->filter()->map(fn ($percentage) => (string) $percentage)->all(),
+            'percentages' => $expense->shares->pluck('percentage', 'user_id')->filter(fn ($percentage) => $percentage !== null)->map(fn ($percentage) => (string) $percentage)->all(),
             'fixed_amounts' => $expense->shares->pluck('amount', 'user_id')->map(fn ($amount) => (string) $amount)->all(),
         ];
         $this->showEditExpenseModal = true;

@@ -45,6 +45,10 @@ class ValidateExpenseSplit
                 $this->fail('percentages', 'Enter a percentage for every selected participant.');
             }
 
+            if ((float) $percentages[$userId] < 0) {
+                $this->fail('percentages', 'Enter a non-negative percentage for every selected participant.');
+            }
+
             $sum += (float) $percentages[$userId];
         }
 

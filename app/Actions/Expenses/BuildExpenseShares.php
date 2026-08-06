@@ -79,13 +79,15 @@ class BuildExpenseShares
         usort($order, fn ($a, $b) => ($fractions[$b] <=> $fractions[$a]) ?: ($a <=> $b));
 
         $amounts = $floors;
+        $orderCount = count($order);
         if ($remainingCents > 0) {
-            foreach (array_slice($order, 0, $remainingCents) as $userId) {
-                $amounts[$userId]++;
+            for ($i = 0; $i < $remainingCents; $i++) {
+                $amounts[$order[$i % $orderCount]]++;
             }
         } elseif ($remainingCents < 0) {
-            foreach (array_slice(array_reverse($order), 0, abs($remainingCents)) as $userId) {
-                $amounts[$userId]--;
+            $reversedOrder = array_reverse($order);
+            for ($i = 0; $i < abs($remainingCents); $i++) {
+                $amounts[$reversedOrder[$i % $orderCount]]--;
             }
         }
 
@@ -107,7 +109,7 @@ class BuildExpenseShares
 
         return array_map(fn ($userId) => [
             'user_id' => $userId,
-            'amount' => number_format((float) $fixedAmounts[$userId], 2, '.', ''),
+            'amount' => Money::fromCents(Money::toCents((string) $fixedAmounts[$userId])),
             'percentage' => null,
         ], $ids);
     }

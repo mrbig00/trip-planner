@@ -79,7 +79,7 @@ class Trip extends Model
      */
     public function members(): Collection
     {
-        return $this->participants->push($this->creator)->filter()->unique('id')->sortBy('id')->values();
+        return $this->participants->concat([$this->creator])->filter()->unique('id')->sortBy('id')->values();
     }
 
     /**
