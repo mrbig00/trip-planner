@@ -1,8 +1,13 @@
 <?php
 
+use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Enums\ExpenseSplitType;
 use App\Models\Expense;
 use App\Models\Trip;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use function Livewire\Volt\layout;
 
@@ -17,6 +22,11 @@ new class extends Component {
     public string $unit_price = '';
     public int $quantity = 1;
     public ?int $user_id = null;
+
+    public string $split_type = 'equal';
+    public array $participant_ids = [];
+    public array $percentages = [];
+    public array $fixed_amounts = [];
 
     public function with(): array
     {
@@ -34,6 +44,18 @@ new class extends Component {
 
         $this->trip = $trip->load(['participants', 'creator']);
         $this->user_id = Auth::id(); // Default to current user
+        $this->participant_ids = $this->trip->members()->pluck('id')->all();
+    }
+
+    /**
+     * Prune stale split inputs whenever the selected participants or split type change.
+     */
+    public function updated(string $name): void
+    {
+        if ($name === 'participant_ids' || $name === 'split_type') {
+            $this->percentages = collect($this->percentages)->only($this->participant_ids)->all();
+            $this->fixed_amounts = collect($this->fixed_amounts)->only($this->participant_ids)->all();
+        }
     }
 
     /**
@@ -41,7 +63,7 @@ new class extends Component {
      */
     public function store(): void
     {
-        $eligibleUserIds = $this->trip->participants->pluck('id')->push($this->trip->user_id)->unique()->toArray();
+        $eligibleUserIds = $this->trip->members()->pluck('id')->all();
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -50,9 +72,43 @@ new class extends Component {
             'unit_price' => ['required', 'numeric', 'min:0'],
             'quantity' => ['required', 'integer', 'min:1'],
             'user_id' => ['required', 'exists:users,id', 'in:'.implode(',', $eligibleUserIds)],
+            'split_type' => ['required', Rule::enum(ExpenseSplitType::class)],
+            'participant_ids' => ['required', 'array', 'min:1'],
+            'participant_ids.*' => ['integer', 'in:'.implode(',', $eligibleUserIds), 'distinct'],
         ]);
 
-        $this->trip->expenses()->create($validated);
+        $splitType = ExpenseSplitType::from($validated['split_type']);
+        $totalCents = (int) bcmul(bcmul((string) $validated['unit_price'], '100', 0), (string) $validated['quantity'], 0);
+
+        app(ValidateExpenseSplit::class)->validate(
+            $splitType,
+            $this->participant_ids,
+            $this->percentages,
+            $this->fixed_amounts,
+            $totalCents
+        );
+
+        DB::transaction(function () use ($validated, $splitType, $totalCents) {
+            $expense = $this->trip->expenses()->create([
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'link' => $validated['link'] ?? null,
+                'unit_price' => $validated['unit_price'],
+                'quantity' => $validated['quantity'],
+                'user_id' => $validated['user_id'],
+                'split_type' => $splitType->value,
+            ]);
+
+            $expense->shares()->createMany(
+                app(BuildExpenseShares::class)->build(
+                    $totalCents,
+                    $splitType,
+                    $this->participant_ids,
+                    $this->percentages,
+                    $this->fixed_amounts
+                )
+            );
+        });
 
         $this->redirect(route('trips.show', $this->trip), navigate: true);
     }
@@ -133,6 +189,84 @@ new class extends Component {
                     @endforeach
                 </flux:select>
             </flux:field>
+
+            <flux:separator />
+
+            <flux:checkbox.group wire:model.live="participant_ids" :label="__('Split between')">
+                @foreach ($trip->members() as $member)
+                    <flux:checkbox wire:key="split-participant-{{ $member->id }}" value="{{ $member->id }}" :label="$member->fullName()" />
+                @endforeach
+            </flux:checkbox.group>
+            @error('participant_ids')
+                <flux:error>{{ $message }}</flux:error>
+            @enderror
+
+            <flux:field>
+                <flux:select wire:model.live="split_type" :label="__('Split type')">
+                    <option value="equal">{{ __('Equal') }}</option>
+                    <option value="percentage">{{ __('Percentage') }}</option>
+                    <option value="fixed">{{ __('Fixed amount') }}</option>
+                </flux:select>
+            </flux:field>
+
+            @php
+                $selectedMembers = $trip->members()->whereIn('id', $participant_ids);
+            @endphp
+
+            @if ($split_type === 'percentage')
+                <div class="space-y-2">
+                    @foreach ($selectedMembers as $member)
+                        <div wire:key="split-percentage-{{ $member->id }}" class="flex items-center gap-3">
+                            <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
+                            <flux:input
+                                wire:model.live="percentages.{{ $member->id }}"
+                                type="number"
+                                step="0.01"
+                                class="w-28"
+                                suffix="%"
+                            />
+                        </div>
+                    @endforeach
+                    @php
+                        $percentageSum = array_sum(array_map('floatval', $percentages));
+                    @endphp
+                    <flux:text class="text-sm {{ abs($percentageSum - 100) <= 0.5 ? 'text-green-500' : 'text-red-500' }}">
+                        {{ number_format($percentageSum, 2) }}% / 100%
+                    </flux:text>
+                    @error('percentages')
+                        <flux:error>{{ $message }}</flux:error>
+                    @enderror
+                </div>
+            @elseif ($split_type === 'fixed')
+                <div class="space-y-2">
+                    @foreach ($selectedMembers as $member)
+                        <div wire:key="split-fixed-{{ $member->id }}" class="flex items-center gap-3">
+                            <flux:text class="flex-1 text-sm">{{ $member->fullName() }}</flux:text>
+                            <flux:input
+                                wire:model.live="fixed_amounts.{{ $member->id }}"
+                                type="number"
+                                step="0.01"
+                                class="w-28"
+                                prefix="$"
+                            />
+                        </div>
+                    @endforeach
+                    @php
+                        $fixedSum = array_sum(array_map('floatval', $fixed_amounts));
+                        $fixedTotal = (is_numeric($unit_price) ? (float) $unit_price : 0) * $quantity;
+                    @endphp
+                    <flux:text class="text-sm {{ abs($fixedSum - $fixedTotal) < 0.005 ? 'text-green-500' : 'text-red-500' }}">
+                        ${{ number_format($fixedSum, 2) }} / ${{ number_format($fixedTotal, 2) }}
+                    </flux:text>
+                    @error('fixed_amounts')
+                        <flux:error>{{ $message }}</flux:error>
+                    @enderror
+                </div>
+            @else
+                <flux:text class="text-sm text-neutral-400">
+                    {{ __('Each of the :count selected members pays an equal share.', ['count' => count($participant_ids)]) }}
+                </flux:text>
+            @endif
 
             @if ($name && $unit_price && $quantity)
                 <flux:callout variant="subtle" class="bg-neutral-700/30">

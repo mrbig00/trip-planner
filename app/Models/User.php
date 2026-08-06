@@ -105,4 +105,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserProvider::class);
     }
+
+    /**
+     * Get the expense shares recorded against this user.
+     */
+    public function expenseShares(): HasMany
+    {
+        return $this->hasMany(ExpenseShare::class);
+    }
 }

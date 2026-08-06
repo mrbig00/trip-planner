@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Collection;
 
 class Trip extends Model
 {
@@ -70,5 +72,37 @@ class Trip extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
+    }
+
+    /**
+     * Get the trip's creator and participants as a single deduplicated collection of users.
+     */
+    public function members(): Collection
+    {
+        return $this->participants->concat([$this->creator])->filter()->unique('id')->sortBy('id')->values();
+    }
+
+    /**
+     * Calculate each member's balance in integer cents: positive means the
+     * member is owed money, negative means the member owes money. Requires
+     * `expenses.shares` to be eager-loaded.
+     */
+    public function balances(): Collection
+    {
+        $balances = $this->members()->mapWithKeys(fn (User $member) => [$member->id => 0]);
+
+        foreach ($this->expenses as $expense) {
+            if ($expense->user_id && $balances->has($expense->user_id)) {
+                $balances[$expense->user_id] += $expense->total_in_cents;
+            }
+
+            foreach ($expense->shares as $share) {
+                if ($balances->has($share->user_id)) {
+                    $balances[$share->user_id] -= Money::toCents((string) $share->amount);
+                }
+            }
+        }
+
+        return $balances;
     }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\ExpenseSplitType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Expense extends Model
 {
@@ -24,6 +26,7 @@ class Expense extends Model
         'quantity',
         'trip_id',
         'user_id',
+        'split_type',
     ];
 
     /**
@@ -36,6 +39,7 @@ class Expense extends Model
         return [
             'unit_price' => 'decimal:2',
             'quantity' => 'integer',
+            'split_type' => ExpenseSplitType::class,
         ];
     }
 
@@ -56,10 +60,26 @@ class Expense extends Model
     }
 
     /**
+     * Get the per-participant shares of this expense.
+     */
+    public function shares(): HasMany
+    {
+        return $this->hasMany(ExpenseShare::class);
+    }
+
+    /**
      * Calculate the total price for this expense.
      */
     public function getTotalAttribute(): float
     {
         return $this->unit_price * $this->quantity;
+    }
+
+    /**
+     * Calculate the total price for this expense in integer cents.
+     */
+    public function getTotalInCentsAttribute(): int
+    {
+        return (int) bcmul(bcmul((string) $this->unit_price, '100', 0), (string) $this->quantity, 0);
     }
 }
