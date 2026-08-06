@@ -26,6 +26,23 @@
     --color-accent: var(--color-neutral-800);
     --color-accent-content: var(--color-neutral-800);
     --color-accent-foreground: var(--color-white);
+
+    /* Fixed per-participant identity colors — never reused for status or
+       magnitude. Slot numbers (1/2/3/5/7) match the stored trip_user.color_slot
+       values; see App\Models\Trip::colorSlotFor(). */
+    --color-participant-1: #2a78d6; /* blue */
+    --color-participant-2: #eb6834; /* orange */
+    --color-participant-3: #1baf7a; /* aqua */
+    --color-participant-5: #e87ba4; /* magenta */
+    --color-participant-7: #4a3aa7; /* violet */
+
+    /* Sequential blue ramp for magnitude (budget bar, spend-over-time) — not
+       participant identity, not status. */
+    --color-money-1: #cde2fb;
+    --color-money-2: #9ec5f4;
+    --color-money-3: #5598e7;
+    --color-money-4: #2a78d6;
+    --color-money-5: #1c5cab;
 }
 
 @layer theme {
@@ -33,6 +50,12 @@
         --color-accent: var(--color-white);
         --color-accent-content: var(--color-white);
         --color-accent-foreground: var(--color-neutral-800);
+
+        --color-participant-1: #3987e5;
+        --color-participant-2: #d95926;
+        --color-participant-3: #199e70;
+        --color-participant-5: #d55181;
+        --color-participant-7: #9085e9;
     }
 }
 

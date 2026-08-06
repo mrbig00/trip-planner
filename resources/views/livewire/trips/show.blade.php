@@ -23,11 +23,11 @@
             <div class="mt-3 flex items-center gap-3">
                 <div class="flex -space-x-2">
                     @foreach ($trip->members() as $member)
-                        <flux:avatar
+                        <x-participant-avatar
                             :name="$member->fullName()"
                             :initials="$member->initials()"
+                            :slot="$trip->colorSlotFor($member)"
                             size="xs"
-                            class="ring-2 ring-neutral-900"
                         />
                     @endforeach
                 </div>
@@ -182,9 +182,10 @@
                                         <div class="space-y-3">
                                             @foreach ($location->comments as $comment)
                                                 <div class="flex items-start gap-3 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700/20">
-                                                    <flux:avatar
+                                                    <x-participant-avatar
                                                         :name="$comment->user->fullName()"
                                                         :initials="$comment->user->initials()"
+                                                        :slot="$trip->colorSlotFor($comment->user)"
                                                         size="sm"
                                                     />
                                                     <div class="flex-1 min-w-0">
@@ -312,9 +313,10 @@
                                     <td class="px-4 py-3">
                                         @if ($expense->owner)
                                             <div class="flex items-center gap-2">
-                                                <flux:avatar
+                                                <x-participant-avatar
                                                     :name="$expense->owner->fullName()"
                                                     :initials="$expense->owner->initials()"
+                                                    :slot="$trip->colorSlotFor($expense->owner)"
                                                     size="xs"
                                                 />
                                                 <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
@@ -400,7 +402,7 @@
                 <div class="flex flex-wrap gap-3">
                     @foreach ($trip->participants as $participant)
                         <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                            <flux:avatar :name="$participant->fullName()" :initials="$participant->initials()" size="sm" />
+                            <x-participant-avatar :name="$participant->fullName()" :initials="$participant->initials()" :slot="$trip->colorSlotFor($participant)" size="sm" />
                             <flux:badge>{{ $participant->fullName() }}</flux:badge>
                             @if ($trip->user_id === Auth::id())
                                 <flux:button
@@ -442,7 +444,7 @@
                 <div class="flex flex-wrap gap-3">
                     @foreach ($this->balances as $balance)
                         <div wire:key="balance-{{ $balance['user']->id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                            <flux:avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" size="sm" />
+                            <x-participant-avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" :slot="$trip->colorSlotFor($balance['user'])" size="sm" />
                             <flux:text class="text-sm">{{ $balance['user']->fullName() }}</flux:text>
                             @if ($balance['balanceCents'] > 0)
                                 <flux:badge color="green">{{ __('is owed') }} ${{ number_format($balance['balanceCents'] / 100, 2) }}</flux:badge>
@@ -462,12 +464,12 @@
                     @foreach ($this->settlementTransfers as $transfer)
                         <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" size="xs" />
+                                <x-participant-avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" :slot="$trip->colorSlotFor($transfer['from'])" size="xs" />
                                 <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
                             </div>
                             <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" size="xs" />
+                                <x-participant-avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" :slot="$trip->colorSlotFor($transfer['to'])" size="xs" />
                                 <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
                             </div>
                             <div class="ml-auto flex items-center gap-3">
@@ -500,12 +502,12 @@
                         <div wire:key="settlement-{{ $settlement['id'] }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
                             <flux:icon.check-circle class="h-4 w-4 text-green-500" />
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" size="xs" />
+                                <x-participant-avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" :slot="$trip->colorSlotFor($settlement['from'])" size="xs" />
                                 <flux:text class="text-sm">{{ $settlement['from']->fullName() }}</flux:text>
                             </div>
                             <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" size="xs" />
+                                <x-participant-avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" :slot="$trip->colorSlotFor($settlement['to'])" size="xs" />
                                 <flux:text class="text-sm">{{ $settlement['to']->fullName() }}</flux:text>
                             </div>
                             <flux:text class="ml-auto text-sm">${{ number_format($settlement['amountCents'] / 100, 2) }}</flux:text>
@@ -546,9 +548,10 @@
                     <div class="space-y-3">
                         @foreach ($this->selectedLocationVoters as $voter)
                             <div class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                                <flux:avatar
+                                <x-participant-avatar
                                     :name="$voter->fullName()"
                                     :initials="$voter->initials()"
+                                    :slot="$trip->colorSlotFor($voter)"
                                     size="sm"
                                 />
                                 <div class="flex-1">

@@ -191,7 +191,13 @@ class Show extends Component
             return;
         }
 
-        $this->trip->participants()->attach($userId);
+        // Fixed color-slot cycle; slot 1 is reserved for the creator (see
+        // Trip::colorSlotFor()) so participants start from slot 2 and wrap
+        // back to slot 1 once 5 colors are already in use.
+        $slotCycle = [2, 3, 5, 7, 1];
+        $slot = $slotCycle[$this->trip->participants()->count() % 5];
+
+        $this->trip->participants()->attach($userId, ['color_slot' => $slot]);
 
         $this->participantSearch = '';
         $this->trip->refresh();

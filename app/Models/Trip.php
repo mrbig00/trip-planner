@@ -55,7 +55,30 @@ class Trip extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'trip_user')
+            ->withPivot(['color_slot'])
             ->withTimestamps();
+    }
+
+    /**
+     * Get the given user's fixed identity color slot for this trip (one of
+     * 1/2/3/5/7 — see resources/css/app.css's --color-participant-* tokens),
+     * or null if they aren't a member. The creator always gets slot 1; every
+     * other participant's slot is assigned once, at attach time, and never
+     * changes — see App\Livewire\Trips\Show::addParticipant().
+     */
+    public function colorSlotFor(User $user): ?int
+    {
+        if ($user->id === $this->user_id) {
+            return 1;
+        }
+
+        $participant = $this->participants->firstWhere('id', $user->id);
+
+        // Cast explicitly: the pivot's color_slot has no declared cast, and the
+        // Postgres driver returns unwrapped numeric columns as strings.
+        return $participant?->pivot->color_slot !== null
+            ? (int) $participant->pivot->color_slot
+            : null;
     }
 
     /**

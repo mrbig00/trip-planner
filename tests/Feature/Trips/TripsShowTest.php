@@ -1,11 +1,12 @@
 <?php
 
-use App\Models\Expense;
-use App\Models\Location;
-use App\Models\LocationComment;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Expense;
 use Livewire\Volt\Volt;
+use App\Models\Location;
+use App\Models\LocationComment;
+use Illuminate\Support\Facades\DB;
 
 test('trip creator can accept a location', function () {
     $owner = User::factory()->create();
@@ -209,6 +210,30 @@ test('owner can add a new participant', function () {
         ->call('addParticipant', $newUser->id);
 
     expect($trip->fresh()->participants->pluck('id'))->toContain($newUser->id);
+});
+
+test('participants are assigned color slots in a fixed cycle that wraps back to slot 1', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $newUsers = User::factory()->count(6)->create();
+    $this->actingAs($owner);
+
+    $component = Volt::test('trips.show', ['trip' => $trip]);
+    foreach ($newUsers as $user) {
+        $component->call('addParticipant', $user->id);
+    }
+
+    // Query the pivot table directly, ordered by its own id, so this doesn't
+    // depend on the participants() relation's (unordered) default query.
+    $slots = DB::table('trip_user')
+        ->where('trip_id', $trip->id)
+        ->orderBy('id')
+        ->pluck('color_slot')
+        ->map(fn ($slot) => (int) $slot);
+
+    // Slot 1 is reserved for the creator, so participants cycle [2, 3, 5, 7, 1],
+    // wrapping back to slot 1 (matching the creator's color) on the 6th person.
+    expect($slots->values()->all())->toBe([2, 3, 5, 7, 1, 2]);
 });
 
 test('adding the creator as a participant is a no-op', function () {
