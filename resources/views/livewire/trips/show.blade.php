@@ -467,12 +467,12 @@
                     @foreach ($this->settlementTransfers as $transfer)
                         <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
                             <div class="flex items-center gap-2">
-                                <x-participant-avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" :slot="$trip->colorSlotFor($transfer['from'])" size="xs" />
+                                <x-participant-avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" :slot="$trip->colorSlotFor($transfer['from'])" size="sm" />
                                 <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
                             </div>
                             <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
                             <div class="flex items-center gap-2">
-                                <x-participant-avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" :slot="$trip->colorSlotFor($transfer['to'])" size="xs" />
+                                <x-participant-avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" :slot="$trip->colorSlotFor($transfer['to'])" size="sm" />
                                 <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
                             </div>
                             <div class="ml-auto flex items-center gap-3">
@@ -505,12 +505,12 @@
                         <div wire:key="settlement-{{ $settlement['id'] }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
                             <flux:icon.check-circle class="h-4 w-4 text-green-500" />
                             <div class="flex items-center gap-2">
-                                <x-participant-avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" :slot="$trip->colorSlotFor($settlement['from'])" size="xs" />
+                                <x-participant-avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" :slot="$trip->colorSlotFor($settlement['from'])" size="sm" />
                                 <flux:text class="text-sm">{{ $settlement['from']->fullName() }}</flux:text>
                             </div>
                             <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
                             <div class="flex items-center gap-2">
-                                <x-participant-avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" :slot="$trip->colorSlotFor($settlement['to'])" size="xs" />
+                                <x-participant-avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" :slot="$trip->colorSlotFor($settlement['to'])" size="sm" />
                                 <flux:text class="text-sm">{{ $settlement['to']->fullName() }}</flux:text>
                             </div>
                             <flux:text class="ml-auto text-sm">${{ number_format($settlement['amountCents'] / 100, 2) }}</flux:text>
