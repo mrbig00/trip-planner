@@ -2,11 +2,14 @@
 
 namespace Database\Seeders;
 
-use App\Models\Expense;
-use App\Models\Location;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Expense;
+use App\Models\Location;
+use App\Enums\ExpenseSplitType;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
+use App\Actions\Expenses\BuildExpenseShares;
 
 class TripSeeder extends Seeder
 {
@@ -93,7 +96,7 @@ class TripSeeder extends Seeder
                 'quantity' => 1,
                 'user_id' => $summerEligibleUsers->random(),
             ],
-        ]);
+        ])->each(fn (Expense $expense) => $this->addEqualShares($expense, $summerEligibleUsers));
 
         // Create a mountain adventure trip
         $mountainTrip = Trip::create([
@@ -150,7 +153,7 @@ class TripSeeder extends Seeder
                 'quantity' => 7,
                 'user_id' => $mountainEligibleUsers->random(),
             ],
-        ]);
+        ])->each(fn (Expense $expense) => $this->addEqualShares($expense, $mountainEligibleUsers));
 
         // Create a city exploration trip
         $cityTrip = Trip::create([
@@ -222,7 +225,7 @@ class TripSeeder extends Seeder
                 'quantity' => 10,
                 'user_id' => $cityEligibleUsers->random(),
             ],
-        ]);
+        ])->each(fn (Expense $expense) => $this->addEqualShares($expense, $cityEligibleUsers));
 
         // Create more trips using factories if more users exist
         if ($users->count() > 1) {
@@ -253,8 +256,30 @@ class TripSeeder extends Seeder
                     ->create([
                         'trip_id' => $trip->id,
                         'user_id' => $eligibleUsers->random(),
-                    ]);
+                    ])
+                    ->each(fn (Expense $expense) => $this->addEqualShares($expense, $eligibleUsers));
             }
         }
+    }
+
+    /**
+     * Give every seeded expense a matching equal-split expense_shares row per
+     * eligible member, the same way the live app does via BuildExpenseShares
+     * — otherwise Trip::balances() credits the payer the full amount with
+     * nothing to subtract from anyone, leaving every seeded trip's balances
+     * summing to a large, impossible-to-settle positive total instead of
+     * zero.
+     */
+    private function addEqualShares(Expense $expense, Collection $eligibleUserIds): void
+    {
+        $expense->shares()->createMany(
+            app(BuildExpenseShares::class)->build(
+                $expense->total_in_cents,
+                ExpenseSplitType::Equal,
+                $eligibleUserIds->all(),
+                [],
+                []
+            )
+        );
     }
 }
