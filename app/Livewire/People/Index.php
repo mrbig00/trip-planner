@@ -37,6 +37,7 @@ class Index extends Component
             ->get();
 
         $companions = collect();
+        $settlementPlan = app(CalculateSettlementPlan::class);
 
         foreach ($trips as $trip) {
             $others = $trip->members()->reject(fn (User $member) => $member->id === $userId);
@@ -45,7 +46,7 @@ class Index extends Component
                 continue;
             }
 
-            $transfers = app(CalculateSettlementPlan::class)->calculate($trip->balances());
+            $transfers = $settlementPlan->calculate($trip->balances());
 
             foreach ($others as $other) {
                 $entry = $companions->get($other->id) ?? [
