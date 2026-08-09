@@ -39,6 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Budget routes
     Volt::route('budgets', 'budgets.index')->name('budgets.index');
 
+    // People routes
+    Volt::route('people', 'people.index')->name('people.index');
+
     // Global Settle Up routes
     Volt::route('settle-up', 'settle-up.index')->name('settle-up.index');
 });
