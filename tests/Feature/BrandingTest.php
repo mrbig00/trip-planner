@@ -13,7 +13,7 @@ test('the app logo icon renders the rebranded mark', function () {
 test('the login page links the favicons and manifest', function () {
     $response = $this->get(route('login'));
 
-    $response->assertStatus(200);
+    $response->assertOk();
     $response->assertSee('/favicon-96x96.png', false);
     $response->assertSee('/favicon.svg', false);
     $response->assertSee('/favicon.ico', false);
