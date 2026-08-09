@@ -1,5 +1,5 @@
 @php
-    $activityIcon = fn ($type) => \App\Actions\Trips\BuildActivityFeed::ICONS[$type];
+    $activityIcon = fn ($type) => \App\Actions\Trips\BuildActivityFeed::iconFor($type);
 @endphp
 
 <div class="flex h-full w-full flex-1 flex-col gap-6" wire:poll.30s>
@@ -28,6 +28,7 @@
                             <x-participant-avatar
                                 :name="$event['user']->fullName()"
                                 :initials="$event['user']->initials()"
+                                :color-slot="$event['trip']->colorSlotFor($event['user'])"
                                 size="xs"
                             />
                         @else

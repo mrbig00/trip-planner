@@ -9,6 +9,8 @@ class BuildActivityFeed
 {
     /**
      * Icon per event type, shared by every view that renders this feed.
+     * Look up via iconFor(), not directly — a raw array access silently
+     * returns null for an unmapped type instead of failing loudly.
      */
     public const ICONS = [
         'comment' => 'chat-bubble-left',
@@ -19,6 +21,16 @@ class BuildActivityFeed
         'expense_deleted' => 'trash',
         'settlement' => 'check-badge',
     ];
+
+    /**
+     * Get the icon for an event type, or fail loudly if a type is ever added
+     * to build() without a matching entry here — a missing icon should be
+     * caught before merge, not ship as a silently blank one.
+     */
+    public static function iconFor(string $type): string
+    {
+        return self::ICONS[$type] ?? throw new \ValueError("No icon mapped for activity event type [{$type}].");
+    }
 
     /**
      * Build a trip's full activity feed, merged from every already-timestamped
@@ -34,11 +46,18 @@ class BuildActivityFeed
      * actually recorded (it always is going forward, via saveExpense/deleteExpense).
      *
      * Requires `locations.votes`, `locations.comments.user`, `expenses.owner`,
-     * `expenses.shares`, and `settlements` to be eager-loaded on the trip.
+     * and `settlements` to be eager-loaded on the trip. Deleted expenses are
+     * excluded from the eager-loaded `expenses` relation by default (soft
+     * deletes), so they're queried separately — pass $trashedExpenses when
+     * building feeds for several trips at once (e.g. the global Activity
+     * page) to fetch them all in one query up front instead of one query per
+     * trip; omitted, it falls back to a live per-trip query, fine for the
+     * single-trip case.
      *
+     * @param  ?Collection<int, \App\Models\Expense>  $trashedExpenses
      * @return Collection<int, array{type: string, at: \Illuminate\Support\Carbon, user: ?\App\Models\User, text: string}>
      */
-    public function build(Trip $trip): Collection
+    public function build(Trip $trip, ?Collection $trashedExpenses = null): Collection
     {
         $events = collect();
         $members = $trip->members()->keyBy('id');
@@ -99,7 +118,7 @@ class BuildActivityFeed
             }
         }
 
-        foreach ($trip->expenses()->onlyTrashed()->get() as $expense) {
+        foreach ($trashedExpenses ?? $trip->expenses()->onlyTrashed()->get() as $expense) {
             $amount = number_format($expense->total, 2);
             $deleter = $members->get($expense->deleted_by);
 

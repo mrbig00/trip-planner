@@ -96,7 +96,7 @@
 
     @if ($this->recentActivity->isNotEmpty())
         @php
-            $activityIcon = fn ($type) => \App\Actions\Trips\BuildActivityFeed::ICONS[$type];
+            $activityIcon = fn ($type) => \App\Actions\Trips\BuildActivityFeed::iconFor($type);
         @endphp
         <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
             <flux:heading size="lg" class="mb-4">{{ __('Recent Activity') }}</flux:heading>
