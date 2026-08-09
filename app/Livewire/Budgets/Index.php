@@ -22,13 +22,8 @@ class Index extends Component
     private function trips(): Collection
     {
         return Trip::query()
-            ->where(function ($query) {
-                $query->where('user_id', Auth::id())
-                    ->orWhereHas('participants', function ($q) {
-                        $q->where('user_id', Auth::id());
-                    });
-            })
-            ->with('expenses')
+            ->visibleTo(Auth::id())
+            ->with(['creator', 'expenses'])
             ->get()
             ->sortByDesc(fn (Trip $trip) => $trip->budget_summary['percentRaw'] ?? -1)
             ->values();

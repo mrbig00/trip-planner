@@ -3,6 +3,7 @@
 use App\Models\Expense;
 use App\Models\Trip;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Volt;
 
 test('guests cannot access the budgets page', function () {
@@ -99,4 +100,20 @@ test('budgets page figures reconcile with the trip detail page', function () {
 
     Volt::test('budgets.index')->assertSee('$120.00 / $300.00');
     Volt::test('trips.show', ['trip' => $trip])->assertSee('$120.00 / $300.00');
+});
+
+test('rendering several trips does not N+1 on each trip creator', function () {
+    $user = User::factory()->create();
+    Trip::factory()->count(5)->create(['user_id' => $user->id]);
+    $this->actingAs($user);
+
+    DB::enableQueryLog();
+    Volt::test('budgets.index');
+    $queryCount = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    // A handful of fixed queries (session, auth, the trips query itself, its
+    // eager loads, etc.) regardless of trip count — not one extra query per
+    // trip to fetch its creator.
+    expect($queryCount)->toBeLessThan(15);
 });
