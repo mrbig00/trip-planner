@@ -17,8 +17,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\BuildBalanceSummary;
 use App\Actions\Expenses\ValidateExpenseSplit;
-use App\Actions\Expenses\CalculateSettlementPlan;
 
 class Show extends Component
 {
@@ -612,12 +612,8 @@ class Show extends Component
      */
     public function getBalancesProperty(): Collection
     {
-        $members = $this->trip->members()->keyBy('id');
-
-        return $this->trip->balances()->map(fn ($cents, $userId) => [
-            'user' => $members->get($userId),
-            'balanceCents' => $cents,
-        ])->values();
+        return app(BuildBalanceSummary::class)
+            ->build($this->trip->balances(), $this->trip->members()->keyBy('id'))['balances'];
     }
 
     /**
@@ -625,14 +621,8 @@ class Show extends Component
      */
     public function getSettlementTransfersProperty(): array
     {
-        $members = $this->trip->members()->keyBy('id');
-
-        return collect(app(CalculateSettlementPlan::class)->calculate($this->trip->balances()))
-            ->map(fn ($transfer) => [
-                'from' => $members->get($transfer['from']),
-                'to' => $members->get($transfer['to']),
-                'amountCents' => $transfer['amount'],
-            ])->all();
+        return app(BuildBalanceSummary::class)
+            ->build($this->trip->balances(), $this->trip->members()->keyBy('id'))['transfers'];
     }
 
     /**
