@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Models\Expense;
-use App\Models\Location;
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Support\Collection;
-use Illuminate\Database\Seeder;
+use App\Models\Expense;
+use App\Models\Location;
 use App\Enums\ExpenseSplitType;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Collection;
 use App\Actions\Expenses\BuildExpenseShares;
 
 class TripSeeder extends Seeder
