@@ -38,30 +38,25 @@
                     </flux:badge>
                 @endif
             </div>
-            @if ($trip->budget !== null)
-                @php
-                    $spent = $this->totalExpenses;
-                    $budget = (float) $trip->budget;
-                    $overBudget = $spent > $budget;
-                    $percent = $budget > 0 ? min(100, ($spent / $budget) * 100) : 100;
-                @endphp
+            @if ($trip->budget_summary)
+                @php $summary = $trip->budget_summary; @endphp
                 <div class="mt-3 max-w-xs">
                     <div class="flex items-center justify-between mb-1">
                         <flux:text class="text-xs text-neutral-400">{{ __('Budget') }}</flux:text>
-                        @if ($overBudget)
+                        @if ($summary['overBudget'])
                             <flux:text class="text-xs text-red-400">
-                                ${{ number_format($spent - $budget, 2) }} {{ __('over budget') }}
+                                ${{ number_format(abs($summary['remaining']), 2) }} {{ __('over budget') }}
                             </flux:text>
                         @else
                             <flux:text class="text-xs text-neutral-400">
-                                ${{ number_format($spent, 2) }} / ${{ number_format($budget, 2) }}
+                                ${{ number_format($summary['spent'], 2) }} / ${{ number_format($summary['budget'], 2) }}
                             </flux:text>
                         @endif
                     </div>
                     <div class="h-2 rounded-full bg-neutral-700/50 overflow-hidden">
                         <div
-                            class="h-full rounded-full {{ $overBudget ? 'bg-red-500' : '' }}"
-                            style="width: {{ $percent }}%;{{ $overBudget ? '' : ' background-color: var(--color-money-4);' }}"
+                            class="h-full rounded-full {{ $summary['overBudget'] ? 'bg-red-500' : '' }}"
+                            style="width: {{ $summary['percentUsed'] }}%;{{ $summary['overBudget'] ? '' : ' background-color: var(--color-money-4);' }}"
                         ></div>
                     </div>
                 </div>

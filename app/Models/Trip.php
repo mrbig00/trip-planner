@@ -183,4 +183,43 @@ class Trip extends Model
 
         return $balances;
     }
+
+    /**
+     * Get the trip's total spend across all expenses. Requires `expenses` to
+     * be eager-loaded to avoid N+1s.
+     */
+    public function getTotalSpentAttribute(): float
+    {
+        return (float) $this->expenses->sum('total');
+    }
+
+    /**
+     * Get a summary of this trip's budget status, or null if no budget has
+     * been set. `remaining` is negative once the trip is over budget.
+     * `percentUsed` is capped at 100 (for progress-bar widths); `percentRaw`
+     * is left uncapped so callers ranking trips by "how over budget" can
+     * still tell a trip 10% over from one 200% over. Requires `expenses` to
+     * be eager-loaded.
+     *
+     * @return array{spent: float, budget: float, remaining: float, percentUsed: float, percentRaw: float, overBudget: bool}|null
+     */
+    public function getBudgetSummaryAttribute(): ?array
+    {
+        if ($this->budget === null) {
+            return null;
+        }
+
+        $spent = $this->total_spent;
+        $budget = (float) $this->budget;
+        $percentRaw = $budget > 0 ? ($spent / $budget) * 100 : ($spent > 0 ? INF : 0);
+
+        return [
+            'spent' => $spent,
+            'budget' => $budget,
+            'remaining' => $budget - $spent,
+            'percentUsed' => min(100, $percentRaw),
+            'percentRaw' => $percentRaw,
+            'overBudget' => $spent > $budget,
+        ];
+    }
 }
