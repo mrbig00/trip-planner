@@ -27,6 +27,9 @@
                     <flux:sidebar.item icon="arrows-right-left" :href="route('settle-up.index')" :current="request()->routeIs('settle-up.*')" wire:navigate>
                         {{ __('Settle Up') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="clock" :href="route('activity.index')" :current="request()->routeIs('activity.*')" wire:navigate>
+                        {{ __('Activity') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
