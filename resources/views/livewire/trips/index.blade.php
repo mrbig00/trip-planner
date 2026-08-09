@@ -44,11 +44,20 @@
                                 <flux:menu.item :href="route('trips.edit', $trip)" wire:navigate>
                                     {{ __('Edit') }}
                                 </flux:menu.item>
-                                <flux:menu.item wire:click="delete({{ $trip->id }})" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
-                                    {{ __('Delete') }}
-                                </flux:menu.item>
+                                <flux:modal.trigger name="delete-trip-{{ $trip->id }}">
+                                    <flux:menu.item variant="danger">
+                                        {{ __('Delete') }}
+                                    </flux:menu.item>
+                                </flux:modal.trigger>
                             </flux:menu>
                         </flux:dropdown>
+
+                        <x-confirm-modal
+                            name="delete-trip-{{ $trip->id }}"
+                            :heading="__('Delete trip?')"
+                            :text="__('Are you sure you want to delete this trip? This action cannot be undone.')"
+                            action="delete({{ $trip->id }})"
+                        />
                     @endif
                 </div>
 
@@ -58,17 +67,17 @@
                     </flux:badge>
                     @if ($trip->participants->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->participants->count() }} {{ __('participants') }}
+                            {{ $trip->participants->count() }} {{ \Illuminate\Support\Str::plural(__('participant'), $trip->participants->count()) }}
                         </flux:badge>
                     @endif
                     @if ($trip->locations->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->locations->count() }} {{ __('locations') }}
+                            {{ $trip->locations->count() }} {{ \Illuminate\Support\Str::plural(__('location'), $trip->locations->count()) }}
                         </flux:badge>
                     @endif
                     @if ($trip->expenses->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->expenses->count() }} {{ __('expenses') }}
+                            {{ $trip->expenses->count() }} {{ \Illuminate\Support\Str::plural(__('expense'), $trip->expenses->count()) }}
                         </flux:badge>
                     @endif
                 </div>

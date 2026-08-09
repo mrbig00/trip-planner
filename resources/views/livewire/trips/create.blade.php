@@ -13,7 +13,6 @@
                     wire:model="name"
                     :label="__('Trip Name')"
                     :placeholder="__('e.g., Summer Vacation 2025')"
-                    required
                     autofocus
                 />
             </flux:field>

@@ -72,9 +72,18 @@
                 <flux:button variant="ghost" :href="route('trips.edit', $trip)" wire:navigate>
                     {{ __('Edit') }}
                 </flux:button>
-                <flux:button variant="danger" wire:click="delete" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
-                    {{ __('Delete') }}
-                </flux:button>
+                <flux:modal.trigger name="delete-trip">
+                    <flux:button variant="danger">
+                        {{ __('Delete') }}
+                    </flux:button>
+                </flux:modal.trigger>
+
+                <x-confirm-modal
+                    name="delete-trip"
+                    :heading="__('Delete trip?')"
+                    :text="__('Are you sure you want to delete this trip? This action cannot be undone.')"
+                    action="delete"
+                />
             </div>
         @endif
     </div>
@@ -228,11 +237,20 @@
                                             <flux:menu.item :href="route('locations.edit', [$trip, $location])" wire:navigate>
                                                 {{ __('Edit') }}
                                             </flux:menu.item>
-                                            <flux:menu.item variant="danger" wire:click="deleteLocation({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this location?') }}">
-                                                {{ __('Delete') }}
-                                            </flux:menu.item>
+                                            <flux:modal.trigger name="delete-location-{{ $location->id }}">
+                                                <flux:menu.item variant="danger">
+                                                    {{ __('Delete') }}
+                                                </flux:menu.item>
+                                            </flux:modal.trigger>
                                         </flux:menu>
                                     </flux:dropdown>
+
+                                    <x-confirm-modal
+                                        name="delete-location-{{ $location->id }}"
+                                        :heading="__('Delete location?')"
+                                        :text="__('Are you sure you want to delete this location? This action cannot be undone.')"
+                                        action="deleteLocation({{ $location->id }})"
+                                    />
                                 @endif
                                 </div>
                             </div>
@@ -277,17 +295,24 @@
                                                         <flux:text class="text-sm text-neutral-300">{{ $comment->content }}</flux:text>
                                                     </div>
                                                     @if ($comment->user_id === Auth::id() || $trip->user_id === Auth::id())
-                                                        <flux:button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            icon-only
-                                                            wire:click="deleteComment({{ $comment->id }})"
-                                                            wire:confirm="{{ __('Are you sure you want to delete this comment?') }}"
-                                                            class="text-red-400/70 hover:text-red-400"
-                                                            title="{{ __('Delete comment') }}"
-                                                        >
-                                                            <flux:icon.x-mark class="h-3 w-3" />
-                                                        </flux:button>
+                                                        <flux:modal.trigger name="delete-comment-{{ $comment->id }}">
+                                                            <flux:button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                icon-only
+                                                                class="text-red-400/70 hover:text-red-400"
+                                                                title="{{ __('Delete comment') }}"
+                                                            >
+                                                                <flux:icon.x-mark class="h-3 w-3" />
+                                                            </flux:button>
+                                                        </flux:modal.trigger>
+
+                                                        <x-confirm-modal
+                                                            name="delete-comment-{{ $comment->id }}"
+                                                            :heading="__('Delete comment?')"
+                                                            :text="__('Are you sure you want to delete this comment? This action cannot be undone.')"
+                                                            action="deleteComment({{ $comment->id }})"
+                                                        />
                                                     @endif
                                                 </div>
                                             @endforeach
@@ -443,17 +468,24 @@
                                                 >
                                                     <flux:icon.pencil class="h-4 w-4" />
                                                 </flux:button>
-                                                <flux:button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    icon-only
-                                                    wire:click="deleteExpense({{ $expense->id }})"
-                                                    wire:confirm="{{ __('Are you sure you want to delete this expense?') }}"
-                                                    class="text-red-400/70 hover:text-red-400"
-                                                    title="{{ __('Delete') }}"
-                                                >
-                                                    <flux:icon.x-mark class="h-4 w-4" />
-                                                </flux:button>
+                                                <flux:modal.trigger name="delete-expense-{{ $expense->id }}">
+                                                    <flux:button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        icon-only
+                                                        class="text-red-400/70 hover:text-red-400"
+                                                        title="{{ __('Delete') }}"
+                                                    >
+                                                        <flux:icon.x-mark class="h-4 w-4" />
+                                                    </flux:button>
+                                                </flux:modal.trigger>
+
+                                                <x-confirm-modal
+                                                    name="delete-expense-{{ $expense->id }}"
+                                                    :heading="__('Delete expense?')"
+                                                    :text="__('Are you sure you want to delete this expense? This action cannot be undone.')"
+                                                    action="deleteExpense({{ $expense->id }})"
+                                                />
                                             @endif
                                         </div>
                                     </td>
@@ -542,17 +574,25 @@
                             <x-participant-avatar :name="$participant->fullName()" :initials="$participant->initials()" :color-slot="$trip->colorSlotFor($participant)" size="sm" />
                             <flux:badge>{{ $participant->fullName() }}</flux:badge>
                             @if ($trip->user_id === Auth::id())
-                                <flux:button
-                                    variant="ghost"
-                                    size="sm"
-                                    icon-only
-                                    wire:click="removeParticipant({{ $participant->id }})"
-                                    wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
-                                    class="text-red-400/70 hover:text-red-400"
-                                    title="{{ __('Remove participant') }}"
-                                >
-                                    <flux:icon.x-mark class="h-4 w-4" />
-                                </flux:button>
+                                <flux:modal.trigger name="remove-participant-{{ $participant->id }}">
+                                    <flux:button
+                                        variant="ghost"
+                                        size="sm"
+                                        icon-only
+                                        class="text-red-400/70 hover:text-red-400"
+                                        title="{{ __('Remove participant') }}"
+                                    >
+                                        <flux:icon.x-mark class="h-4 w-4" />
+                                    </flux:button>
+                                </flux:modal.trigger>
+
+                                <x-confirm-modal
+                                    name="remove-participant-{{ $participant->id }}"
+                                    :heading="__('Remove participant?')"
+                                    :text="__('Are you sure you want to remove this participant from the trip? This action cannot be undone.')"
+                                    action="removeParticipant({{ $participant->id }})"
+                                    :confirm-label="__('Remove')"
+                                />
                             @endif
                         </div>
                     @endforeach
@@ -612,15 +652,27 @@
                             <div class="ml-auto flex items-center gap-3">
                                 <flux:text class="font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
                                 @if ($trip->user_id === Auth::id() || $transfer['from']->id === Auth::id() || $transfer['to']->id === Auth::id())
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        wire:click="markTransferSettled({{ $transfer['from']->id }}, {{ $transfer['to']->id }}, {{ $transfer['amountCents'] }})"
-                                        wire:confirm="{{ __('Mark this transfer as settled? This cannot be undone.') }}"
-                                        class="text-neutral-300 hover:text-white"
-                                    >
-                                        {{ __('Mark as settled') }}
-                                    </flux:button>
+                                    @php
+                                        $transferModalName = "settle-transfer-{$transfer['from']->id}-{$transfer['to']->id}-{$transfer['amountCents']}";
+                                    @endphp
+                                    <flux:modal.trigger :name="$transferModalName">
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            class="text-neutral-300 hover:text-white"
+                                        >
+                                            {{ __('Mark as settled') }}
+                                        </flux:button>
+                                    </flux:modal.trigger>
+
+                                    <x-confirm-modal
+                                        :name="$transferModalName"
+                                        :heading="__('Mark transfer as settled?')"
+                                        :text="__('Are you sure you want to mark this transfer as settled? This cannot be undone.')"
+                                        action="markTransferSettled({{ $transfer['from']->id }}, {{ $transfer['to']->id }}, {{ $transfer['amountCents'] }})"
+                                        :confirm-label="__('Mark as settled')"
+                                        confirm-variant="primary"
+                                    />
                                 @endif
                             </div>
                         </div>
