@@ -31,7 +31,7 @@
                             <div class="min-w-0">
                                 <flux:heading size="lg">{{ $companion['user']->fullName() }}</flux:heading>
                                 <flux:text class="text-sm text-neutral-400">
-                                    {{ $companion['trips']->count() }} {{ Str::plural(__('trip'), $companion['trips']->count()) }} {{ __('together') }}
+                                    {{ $companion['trips']->count() }} {{ __(Str::plural('trip', $companion['trips']->count())) }} {{ __('together') }}
                                 </flux:text>
                             </div>
                         </div>

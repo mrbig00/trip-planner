@@ -114,3 +114,39 @@ test('the same companion across multiple trips is shown once, with aggregated tr
         ->assertSee('Trip Two')
         ->assertSee('$70.00 owed to you');
 });
+
+test('on a 3+ person trip, a companion\'s balance reflects their own direct transactions, not an arbitrary settlement-plan pairing', function () {
+    // Viewer directly paid for D's $50 share (D genuinely owes the viewer).
+    // B separately paid for C's $50 share (C genuinely owes B, not the viewer).
+    // Naively summing minimal-transaction settlement-plan transfers here can
+    // pick the opposite (equally balance-minimal) pairing and misattribute
+    // both debts to the wrong companion — this asserts the real ledger wins.
+    $viewer = User::factory()->create();
+    $b = User::factory()->create(['first_name' => 'B', 'last_name' => 'Payer']);
+    $c = User::factory()->create(['first_name' => 'C', 'last_name' => 'NotViewersDebtor']);
+    $d = User::factory()->create(['first_name' => 'D', 'last_name' => 'ViewersDebtor']);
+
+    $trip = Trip::factory()->create(['user_id' => $viewer->id]);
+    $trip->participants()->attach([$b->id, $c->id, $d->id]);
+
+    $paidForD = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $viewer->id, 'unit_price' => 50, 'quantity' => 1]);
+    $paidForD->shares()->create(['user_id' => $d->id, 'amount' => 50]);
+
+    $paidForC = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $b->id, 'unit_price' => 50, 'quantity' => 1]);
+    $paidForC->shares()->create(['user_id' => $c->id, 'amount' => 50]);
+
+    $this->actingAs($viewer);
+
+    $html = Volt::test('people.index')->html();
+
+    // All three still appear as companions (they share the trip)...
+    expect($html)->toContain('B Payer');
+    expect($html)->toContain('C NotViewersDebtor');
+    expect($html)->toContain('D ViewersDebtor');
+
+    // ...but only D — who the viewer actually transacted with — owes them
+    // anything; B and C (who transacted with each other, not the viewer)
+    // are correctly settled up from the viewer's perspective.
+    expect(substr_count($html, '$50.00 owed to you'))->toBe(1);
+    expect(substr_count($html, 'Settled up'))->toBe(2);
+});
