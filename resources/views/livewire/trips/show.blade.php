@@ -1,4 +1,9 @@
 <div class="flex h-full w-full flex-1 flex-col gap-6">
+    <flux:link :href="route('trips.index')" wire:navigate class="text-sm text-neutral-400 hover:text-white inline-flex items-center gap-1">
+        <flux:icon.chevron-left class="h-4 w-4" />
+        {{ __('Trips') }}
+    </flux:link>
+
     <div class="flex items-start justify-between gap-4">
         <div class="flex-1 min-w-0">
             <flux:heading size="xl">{{ $trip->name }}</flux:heading>
@@ -15,18 +20,101 @@
                     {{ $trip->created_at->format('M d, Y') }}
                 </flux:badge>
             </div>
+            <div class="mt-3 flex items-center gap-3">
+                <div class="flex -space-x-2">
+                    @foreach ($trip->members() as $member)
+                        <x-participant-avatar
+                            :name="$member->fullName()"
+                            :initials="$member->initials()"
+                            :color-slot="$trip->colorSlotFor($member)"
+                            size="xs"
+                        />
+                    @endforeach
+                </div>
+                <flux:badge size="sm">{{ __('Total') }}: ${{ number_format($this->totalExpenses, 2) }}</flux:badge>
+                @if ($trip->countdownLabel())
+                    <flux:badge size="sm" variant="ghost" class="bg-neutral-700/50 text-neutral-300">
+                        {{ $trip->countdownLabel() }}
+                    </flux:badge>
+                @endif
+            </div>
+            @if ($trip->budget !== null)
+                @php
+                    $spent = $this->totalExpenses;
+                    $budget = (float) $trip->budget;
+                    $overBudget = $spent > $budget;
+                    $percent = $budget > 0 ? min(100, ($spent / $budget) * 100) : 100;
+                @endphp
+                <div class="mt-3 max-w-xs">
+                    <div class="flex items-center justify-between mb-1">
+                        <flux:text class="text-xs text-neutral-400">{{ __('Budget') }}</flux:text>
+                        @if ($overBudget)
+                            <flux:text class="text-xs text-red-400">
+                                ${{ number_format($spent - $budget, 2) }} {{ __('over budget') }}
+                            </flux:text>
+                        @else
+                            <flux:text class="text-xs text-neutral-400">
+                                ${{ number_format($spent, 2) }} / ${{ number_format($budget, 2) }}
+                            </flux:text>
+                        @endif
+                    </div>
+                    <div class="h-2 rounded-full bg-neutral-700/50 overflow-hidden">
+                        <div
+                            class="h-full rounded-full {{ $overBudget ? 'bg-red-500' : '' }}"
+                            style="width: {{ $percent }}%;{{ $overBudget ? '' : ' background-color: var(--color-money-4);' }}"
+                        ></div>
+                    </div>
+                </div>
+            @endif
         </div>
         @if ($trip->user_id === Auth::id())
             <div class="flex items-center gap-2">
                 <flux:button variant="ghost" :href="route('trips.edit', $trip)" wire:navigate>
                     {{ __('Edit') }}
                 </flux:button>
-                <flux:button variant="ghost" wire:click="delete" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
+                <flux:button variant="danger" wire:click="delete" wire:confirm="{{ __('Are you sure you want to delete this trip?') }}">
                     {{ __('Delete') }}
                 </flux:button>
             </div>
         @endif
     </div>
+
+    @if ($this->recentActivity->isNotEmpty())
+        @php
+            $activityIcon = fn ($type) => match ($type) {
+                'comment' => 'chat-bubble-left',
+                'vote' => 'heart',
+                'accepted' => 'check-circle',
+                'expense' => 'currency-dollar',
+                'expense_edited' => 'pencil',
+                'expense_deleted' => 'trash',
+                'settlement' => 'check-badge',
+            };
+        @endphp
+        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+            <flux:heading size="lg" class="mb-4">{{ __('Recent Activity') }}</flux:heading>
+            <div class="space-y-3">
+                @foreach ($this->recentActivity as $event)
+                    <div wire:key="activity-{{ $loop->index }}" class="flex items-center gap-3">
+                        @if ($event['user'])
+                            <x-participant-avatar
+                                :name="$event['user']->fullName()"
+                                :initials="$event['user']->initials()"
+                                :color-slot="$trip->colorSlotFor($event['user'])"
+                                size="xs"
+                            />
+                        @else
+                            <div class="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-700/50 shrink-0">
+                                <flux:icon :icon="$activityIcon($event['type'])" class="h-3.5 w-3.5 text-neutral-400" />
+                            </div>
+                        @endif
+                        <flux:text class="text-sm flex-1">{{ $event['text'] }}</flux:text>
+                        <flux:text class="text-xs text-neutral-500 shrink-0">{{ $event['at']->diffForHumans() }}</flux:text>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     <div class="grid gap-6 md:grid-cols-2">
         <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
@@ -41,9 +129,23 @@
                     @endif
                 </div>
             </div>
+            @php
+                // Once one location is accepted, it's the only one shown by
+                // default — the rest stay collapsed behind the toggle below
+                // until asked for. With nothing accepted yet, everyone still
+                // needs to see (and vote on) every option, so show them all.
+                $hasAcceptedLocation = $trip->locations->contains('accepted', true);
+                $pendingLocationCount = $trip->locations->where('accepted', false)->count();
+                $visibleLocations = $hasAcceptedLocation && ! $showAllLocations
+                    ? $trip->locations->where('accepted', true)
+                    : $trip->locations;
+            @endphp
+            @if ($visibleLocations->contains(fn ($location) => $location->latitude && $location->longitude))
+                <flux:text class="text-[10px] opacity-50 -mt-3 mb-3 block">{{ __('Map thumbnails © OpenStreetMap contributors') }}</flux:text>
+            @endif
             @if ($trip->locations->count() > 0)
                 <div class="space-y-3">
-                    @foreach ($trip->locations as $location)
+                    @foreach ($visibleLocations->sortByDesc('accepted')->values() as $location)
                             <div wire:key="location-{{ $location->id }}" class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
@@ -54,15 +156,15 @@
                                             $hasVoted = $location->hasVoteFrom(Auth::user());
                                         @endphp
                                         @if ($voteCount > 0)
-                                            <flux:button
-                                                variant="ghost"
-                                                size="sm"
+                                            <button
+                                                type="button"
                                                 wire:click="showVoters({{ $location->id }})"
-                                                class="bg-neutral-700/50 text-neutral-300 hover:bg-neutral-700 hover:text-white h-auto py-1 px-2"
+                                                title="{{ __('View voters') }}"
+                                                class="inline-flex items-center gap-1 rounded-full bg-neutral-700/50 text-neutral-400 text-xs px-2 py-0.5 hover:text-neutral-200 cursor-pointer"
                                             >
-                                                <flux:icon.heart class="h-3 w-3" />
+                                                <flux:icon.heart variant="mini" class="h-3 w-3" />
                                                 {{ $voteCount }}
-                                            </flux:button>
+                                            </button>
                                         @endif
                                     </div>
                                     @if ($location->price)
@@ -71,9 +173,12 @@
                                         </flux:text>
                                     @endif
                                     @if ($location->latitude && $location->longitude)
-                                        <flux:text class="text-xs mt-1 opacity-70">
-                                            {{ number_format($location->latitude, 6) }}, {{ number_format($location->longitude, 6) }}
-                                        </flux:text>
+                                        <div class="mt-2">
+                                            <x-location-map-thumbnail :latitude="$location->latitude" :longitude="$location->longitude" width="140" height="100" />
+                                            <flux:text class="text-[11px] mt-1 opacity-60">
+                                                {{ number_format($location->latitude, 6) }}, {{ number_format($location->longitude, 6) }}
+                                            </flux:text>
+                                        </div>
                                     @endif
                                     @if ($location->link)
                                         <flux:link :href="$location->link" target="_blank" class="text-xs mt-1 text-blue-400 hover:text-blue-300">
@@ -83,25 +188,36 @@
                                 </div>
                                 <div class="flex items-center gap-2">
                                 <flux:button
-                                    variant="{{ $hasVoted ? 'primary' : 'ghost' }}"
+                                    variant="ghost"
                                     size="sm"
                                     wire:click="toggleVote({{ $location->id }})"
-                                    class="{{ $hasVoted ? '' : 'text-neutral-300 hover:text-white' }}"
+                                    {{-- The `!` (important) modifier is required here: Flux's ghost-variant button
+                                    already sets `text-zinc-800 dark:text-white`, and Tailwind resolves same-specificity
+                                    utility conflicts by order in the compiled stylesheet, not by order in this class
+                                    attribute, so a plain override class would otherwise silently lose. --}}
+                                    class="{{ $hasVoted ? '!text-red-500 hover:!text-red-400' : '!text-neutral-300 hover:!text-white' }}"
                                 >
-                                    <flux:icon.heart class="h-4 w-4" />
+                                    {{-- inline-block overrides Tailwind's `svg { display: block }` preflight rule: without
+                                    it, the icon and label get wrapped together in a plain (non-flex) <span> by Flux's
+                                    automatic wire:click loading-state handling, and the block-level icon forces the
+                                    label onto its own line below it. --}}
+                                    <flux:icon.heart variant="{{ $hasVoted ? 'solid' : 'outline' }}" class="h-4 w-4 inline-block" />
                                     {{ $hasVoted ? __('Voted') : __('Vote') }}
                                 </flux:button>
                                 @if ($location->accepted)
-                                    <flux:badge variant="success">{{ __('Accepted') }}</flux:badge>
-                                @elseif ($trip->user_id === Auth::id())
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        wire:click="acceptLocation({{ $location->id }})"
-                                        class="text-neutral-300 hover:text-white"
-                                    >
-                                        {{ __('Accept') }}
-                                    </flux:button>
+                                    <flux:badge color="green">{{ __('Accepted') }}</flux:badge>
+                                @else
+                                    <flux:badge color="amber">{{ __('Pending') }}</flux:badge>
+                                    @if ($trip->user_id === Auth::id())
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            wire:click="acceptLocation({{ $location->id }})"
+                                            class="text-neutral-300 hover:text-white"
+                                        >
+                                            {{ __('Accept') }}
+                                        </flux:button>
+                                    @endif
                                 @endif
                                 @if ($trip->user_id === Auth::id())
                                     <flux:dropdown>
@@ -112,7 +228,7 @@
                                             <flux:menu.item :href="route('locations.edit', [$trip, $location])" wire:navigate>
                                                 {{ __('Edit') }}
                                             </flux:menu.item>
-                                            <flux:menu.item wire:click="deleteLocation({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this location?') }}">
+                                            <flux:menu.item variant="danger" wire:click="deleteLocation({{ $location->id }})" wire:confirm="{{ __('Are you sure you want to delete this location?') }}">
                                                 {{ __('Delete') }}
                                             </flux:menu.item>
                                         </flux:menu>
@@ -147,9 +263,10 @@
                                         <div class="space-y-3">
                                             @foreach ($location->comments as $comment)
                                                 <div class="flex items-start gap-3 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700/20">
-                                                    <flux:avatar
+                                                    <x-participant-avatar
                                                         :name="$comment->user->fullName()"
                                                         :initials="$comment->user->initials()"
+                                                        :color-slot="$trip->colorSlotFor($comment->user)"
                                                         size="sm"
                                                     />
                                                     <div class="flex-1 min-w-0">
@@ -166,7 +283,7 @@
                                                             icon-only
                                                             wire:click="deleteComment({{ $comment->id }})"
                                                             wire:confirm="{{ __('Are you sure you want to delete this comment?') }}"
-                                                            class="text-neutral-400 hover:text-red-400"
+                                                            class="text-red-400/70 hover:text-red-400"
                                                             title="{{ __('Delete comment') }}"
                                                         >
                                                             <flux:icon.x-mark class="h-3 w-3" />
@@ -189,6 +306,21 @@
                             </div>
                         </div>
                     @endforeach
+
+                    @if ($hasAcceptedLocation && $pendingLocationCount > 0)
+                        <flux:button
+                            variant="ghost"
+                            size="sm"
+                            wire:click="toggleShowAllLocations"
+                            class="text-xs text-neutral-400 hover:text-white"
+                        >
+                            @if ($showAllLocations)
+                                {{ __('Hide unvoted locations') }}
+                            @else
+                                {{ $pendingLocationCount === 1 ? __('Show 1 unvoted location') : __('Show :count unvoted locations', ['count' => $pendingLocationCount]) }}
+                            @endif
+                        </flux:button>
+                    @endif
                 </div>
             @else
                 <flux:callout variant="subtle">
@@ -197,6 +329,7 @@
             @endif
         </div>
 
+        <div class="flex flex-col gap-6">
         <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
             <div class="flex items-center justify-between mb-4">
                 <flux:heading size="lg">{{ __('Expenses') }}</flux:heading>
@@ -252,6 +385,10 @@
                                     <td class="px-4 py-3">
                                         @if ($expense->description)
                                             <flux:text class="text-sm text-neutral-400 line-clamp-1">{{ $expense->description }}</flux:text>
+                                        @elseif ($canEditExpense)
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                                {{ __('+ Add description') }}
+                                            </button>
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -261,6 +398,10 @@
                                             <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-400 hover:text-blue-300">
                                                 {{ __('Open') }}
                                             </flux:link>
+                                        @elseif ($canEditExpense)
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                                {{ __('+ Add link') }}
+                                            </button>
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -268,9 +409,10 @@
                                     <td class="px-4 py-3">
                                         @if ($expense->owner)
                                             <div class="flex items-center gap-2">
-                                                <flux:avatar
+                                                <x-participant-avatar
                                                     :name="$expense->owner->fullName()"
                                                     :initials="$expense->owner->initials()"
+                                                    :color-slot="$trip->colorSlotFor($expense->owner)"
                                                     size="xs"
                                                 />
                                                 <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
@@ -307,7 +449,7 @@
                                                     icon-only
                                                     wire:click="deleteExpense({{ $expense->id }})"
                                                     wire:confirm="{{ __('Are you sure you want to delete this expense?') }}"
-                                                    class="text-neutral-400 hover:text-red-400"
+                                                    class="text-red-400/70 hover:text-red-400"
                                                     title="{{ __('Delete') }}"
                                                 >
                                                     <flux:icon.x-mark class="h-4 w-4" />
@@ -319,15 +461,12 @@
                             @endforeach
                         </tbody>
                         <tfoot>
-                            @php
-                                $totalExpenses = $trip->expenses->sum('total');
-                            @endphp
                             <tr class="border-t-2 border-neutral-700 bg-neutral-800/30">
                                 <td class="px-4 py-3" colspan="4">
                                     <flux:text class="font-semibold">{{ __('Total') }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <flux:text class="font-semibold text-lg">${{ number_format($totalExpenses, 2) }}</flux:text>
+                                    <flux:text class="font-semibold text-lg">${{ number_format($this->totalExpenses, 2) }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3"></td>
                                 <td class="px-4 py-3"></td>
@@ -336,11 +475,97 @@
                         </tfoot>
                     </table>
                 </div>
+
+                @if ($this->costBreakdown->isNotEmpty())
+                    @php
+                        // Canvas drawing doesn't follow CSS dark: variants, so these are
+                        // the literal dark-tuned hexes from app.css's .dark override —
+                        // matching the existing (also non-adaptive) bar chart convention.
+                        $breakdownColor = fn ($slot) => match ($slot) {
+                            1 => '#3987e5',
+                            2 => '#d95926',
+                            3 => '#199e70',
+                            5 => '#d55181',
+                            7 => '#9085e9',
+                            default => '#71717a',
+                        };
+                    @endphp
+                    <div class="mt-6 pt-6 border-t border-neutral-700/50">
+                        <flux:subheading class="mb-3">{{ __('Cost Breakdown') }}</flux:subheading>
+                        <div class="flex flex-col sm:flex-row items-center gap-6">
+                            <div
+                                class="relative h-44 w-44 shrink-0"
+                                x-data="doughnutChart({
+                                    labels: @js($this->costBreakdown->pluck('user')->map->fullName()),
+                                    data: @js($this->costBreakdown->pluck('amountCents')->map(fn ($cents) => $cents / 100)),
+                                    colors: @js($this->costBreakdown->pluck('slot')->map($breakdownColor)),
+                                    valuePrefix: '$',
+                                })"
+                            >
+                                <canvas x-ref="canvas"></canvas>
+                            </div>
+                            <div class="flex-1 w-full space-y-2">
+                                @foreach ($this->costBreakdown as $row)
+                                    <div class="flex items-center gap-2">
+                                        <span class="h-3 w-3 rounded-full shrink-0" style="background-color: {{ $breakdownColor($row['slot']) }}"></span>
+                                        <flux:text class="text-sm flex-1">{{ $row['user']->fullName() }}</flux:text>
+                                        <flux:text class="text-sm font-medium">${{ number_format($row['amountCents'] / 100, 2) }}</flux:text>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
             @else
                 <flux:callout variant="subtle">
                     <flux:text>{{ __('No expenses added yet.') }}</flux:text>
                     </flux:callout>
             @endif
+        </div>
+
+        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <flux:heading size="lg">{{ __('Participants') }}</flux:heading>
+                <div class="flex items-center gap-2">
+                    <flux:badge>{{ $trip->participants->count() }}</flux:badge>
+                    @if ($trip->user_id === Auth::id())
+                        <flux:button variant="ghost" size="sm" wire:click="openAddParticipantModal">
+                            {{ __('Add Participant') }}
+                        </flux:button>
+                    @endif
+                </div>
+            </div>
+            @if ($trip->participants->count() > 0)
+                <div class="flex flex-wrap gap-3">
+                    @foreach ($trip->participants as $participant)
+                        <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                            <x-participant-avatar :name="$participant->fullName()" :initials="$participant->initials()" :color-slot="$trip->colorSlotFor($participant)" size="sm" />
+                            <flux:badge>{{ $participant->fullName() }}</flux:badge>
+                            @if ($trip->user_id === Auth::id())
+                                <flux:button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon-only
+                                    wire:click="removeParticipant({{ $participant->id }})"
+                                    wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
+                                    class="text-red-400/70 hover:text-red-400"
+                                    title="{{ __('Remove participant') }}"
+                                >
+                                    <flux:icon.x-mark class="h-4 w-4" />
+                                </flux:button>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <flux:callout variant="subtle">
+                    <flux:text>{{ __('No participants yet.') }}</flux:text>
+                    @if ($trip->user_id === Auth::id())
+                        <flux:text class="mt-2">{{ __('Click "Add Participant" to invite friends to your trip.') }}</flux:text>
+                    @endif
+                </flux:callout>
+            @endif
+        </div>
         </div>
     </div>
 
@@ -356,7 +581,7 @@
                 <div class="flex flex-wrap gap-3">
                     @foreach ($this->balances as $balance)
                         <div wire:key="balance-{{ $balance['user']->id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                            <flux:avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" size="sm" />
+                            <x-participant-avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" :color-slot="$trip->colorSlotFor($balance['user'])" size="sm" />
                             <flux:text class="text-sm">{{ $balance['user']->fullName() }}</flux:text>
                             @if ($balance['balanceCents'] > 0)
                                 <flux:badge color="green">{{ __('is owed') }} ${{ number_format($balance['balanceCents'] / 100, 2) }}</flux:badge>
@@ -376,15 +601,28 @@
                     @foreach ($this->settlementTransfers as $transfer)
                         <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" size="xs" />
+                                <x-participant-avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" :color-slot="$trip->colorSlotFor($transfer['from'])" size="sm" />
                                 <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
                             </div>
                             <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
                             <div class="flex items-center gap-2">
-                                <flux:avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" size="xs" />
+                                <x-participant-avatar :name="$transfer['to']->fullName()" :initials="$transfer['to']->initials()" :color-slot="$trip->colorSlotFor($transfer['to'])" size="sm" />
                                 <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
                             </div>
-                            <flux:text class="ml-auto font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                            <div class="ml-auto flex items-center gap-3">
+                                <flux:text class="font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                                @if ($trip->user_id === Auth::id() || $transfer['from']->id === Auth::id() || $transfer['to']->id === Auth::id())
+                                    <flux:button
+                                        variant="ghost"
+                                        size="sm"
+                                        wire:click="markTransferSettled({{ $transfer['from']->id }}, {{ $transfer['to']->id }}, {{ $transfer['amountCents'] }})"
+                                        wire:confirm="{{ __('Mark this transfer as settled? This cannot be undone.') }}"
+                                        class="text-neutral-300 hover:text-white"
+                                    >
+                                        {{ __('Mark as settled') }}
+                                    </flux:button>
+                                @endif
+                            </div>
                         </div>
                     @endforeach
                 </div>
@@ -393,53 +631,31 @@
                     <flux:text>{{ __('Everyone is settled up!') }}</flux:text>
                 </flux:callout>
             @endif
+
+            @if ($this->recentSettlements->isNotEmpty())
+                <flux:subheading class="mt-6 mb-3">{{ __('Recent Settlements') }}</flux:subheading>
+                <div class="space-y-2">
+                    @foreach ($this->recentSettlements as $settlement)
+                        <div wire:key="settlement-{{ $settlement['id'] }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
+                            <flux:icon.check-circle class="h-4 w-4 text-green-500" />
+                            <div class="flex items-center gap-2">
+                                <x-participant-avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" :color-slot="$trip->colorSlotFor($settlement['from'])" size="sm" />
+                                <flux:text class="text-sm">{{ $settlement['from']->fullName() }}</flux:text>
+                            </div>
+                            <flux:icon.arrow-right class="h-4 w-4 text-neutral-400" />
+                            <div class="flex items-center gap-2">
+                                <x-participant-avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" :color-slot="$trip->colorSlotFor($settlement['to'])" size="sm" />
+                                <flux:text class="text-sm">{{ $settlement['to']->fullName() }}</flux:text>
+                            </div>
+                            <flux:text class="ml-auto text-sm">${{ number_format($settlement['amountCents'] / 100, 2) }}</flux:text>
+                            <flux:badge color="green" size="sm">{{ __('Settled') }}</flux:badge>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         @else
             <flux:callout variant="subtle">
                 <flux:text>{{ __('No expenses added yet.') }}</flux:text>
-            </flux:callout>
-        @endif
-    </div>
-
-    <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <flux:heading size="lg">{{ __('Participants') }}</flux:heading>
-            <div class="flex items-center gap-2">
-                <flux:badge>{{ $trip->participants->count() }}</flux:badge>
-                @if ($trip->user_id === Auth::id())
-                    <flux:button variant="ghost" size="sm" wire:click="openAddParticipantModal">
-                        {{ __('Add Participant') }}
-                    </flux:button>
-                @endif
-            </div>
-        </div>
-        @if ($trip->participants->count() > 0)
-            <div class="flex flex-wrap gap-3">
-                @foreach ($trip->participants as $participant)
-                    <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                        <flux:avatar :name="$participant->fullName()" :initials="$participant->initials()" size="sm" />
-                        <flux:badge>{{ $participant->fullName() }}</flux:badge>
-                        @if ($trip->user_id === Auth::id())
-                            <flux:button
-                                variant="ghost"
-                                size="sm"
-                                icon-only
-                                wire:click="removeParticipant({{ $participant->id }})"
-                                wire:confirm="{{ __('Are you sure you want to remove this participant?') }}"
-                                class="text-neutral-400 hover:text-red-400"
-                                title="{{ __('Remove participant') }}"
-                            >
-                                <flux:icon.x-mark class="h-4 w-4" />
-                            </flux:button>
-                        @endif
-                    </div>
-                @endforeach
-            </div>
-        @else
-            <flux:callout variant="subtle">
-                <flux:text>{{ __('No participants yet.') }}</flux:text>
-                @if ($trip->user_id === Auth::id())
-                    <flux:text class="mt-2">{{ __('Click "Add Participant" to invite friends to your trip.') }}</flux:text>
-                @endif
             </flux:callout>
         @endif
     </div>
@@ -469,9 +685,10 @@
                     <div class="space-y-3">
                         @foreach ($this->selectedLocationVoters as $voter)
                             <div class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                                <flux:avatar
+                                <x-participant-avatar
                                     :name="$voter->fullName()"
                                     :initials="$voter->initials()"
+                                    :color-slot="$trip->colorSlotFor($voter)"
                                     size="sm"
                                 />
                                 <div class="flex-1">
@@ -531,7 +748,7 @@
                         @foreach ($this->searchableUsers as $user)
                             <div class="flex items-center justify-between gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-800/50 transition-colors">
                                 <div class="flex items-center gap-3 flex-1">
-                                    <flux:avatar
+                                    <x-participant-avatar
                                         :name="$user->fullName()"
                                         :initials="$user->initials()"
                                         size="sm"

@@ -1,8 +1,9 @@
 <?php
 
-use App\Models\Location;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Location;
+use Illuminate\Support\Carbon;
 
 test('a location can be created', function () {
     $trip = Trip::factory()->create();
@@ -79,6 +80,25 @@ test('accepting a location does not affect locations in other trips', function (
 
     expect($locationA->fresh()->accepted)->toBeTrue();
     expect($locationB->fresh()->accepted)->toBeTrue();
+});
+
+test('accepting a location after another leaves only the latest one accepted', function () {
+    $trip = Trip::factory()->create();
+    $first = Location::factory()->create(['trip_id' => $trip->id, 'accepted' => false]);
+    $second = Location::factory()->create(['trip_id' => $trip->id, 'accepted' => false]);
+
+    Carbon::setTestNow('2026-01-01 10:00:00');
+    $first->accept();
+
+    Carbon::setTestNow('2026-01-01 10:05:00');
+    $second->accept();
+
+    Carbon::setTestNow();
+
+    expect($first->fresh()->accepted)->toBeFalse();
+    expect($first->fresh()->accepted_at)->toBeNull();
+    expect($second->fresh()->accepted)->toBeTrue();
+    expect($second->fresh()->accepted_at)->toEqual(Carbon::parse('2026-01-01 10:05:00'));
 });
 
 test('toggleVote attaches a vote on first call and detaches on second', function () {

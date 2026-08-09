@@ -21,6 +21,8 @@ class Edit extends Component
 
     public ?string $end_date = null;
 
+    public ?string $budget = null;
+
     /**
      * Mount the component.
      */
@@ -35,6 +37,7 @@ class Edit extends Component
         $this->description = $trip->description ?? '';
         $this->start_date = $trip->start_date?->toDateString();
         $this->end_date = $trip->end_date?->toDateString();
+        $this->budget = $trip->budget !== null ? (string) $trip->budget : null;
     }
 
     /**
@@ -42,11 +45,16 @@ class Edit extends Component
      */
     public function update(): void
     {
+        if ($this->budget === '') {
+            $this->budget = null;
+        }
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'budget' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $this->trip->update($validated);

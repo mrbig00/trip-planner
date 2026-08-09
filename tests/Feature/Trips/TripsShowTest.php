@@ -1,11 +1,12 @@
 <?php
 
-use App\Models\Expense;
-use App\Models\Location;
-use App\Models\LocationComment;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Expense;
 use Livewire\Volt\Volt;
+use App\Models\Location;
+use App\Models\LocationComment;
+use Illuminate\Support\Facades\DB;
 
 test('trip creator can accept a location', function () {
     $owner = User::factory()->create();
@@ -17,6 +18,54 @@ test('trip creator can accept a location', function () {
         ->call('acceptLocation', $location->id);
 
     expect($location->fresh()->accepted)->toBeTrue();
+});
+
+test('all locations show when none is accepted yet', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Option One', 'accepted' => false]);
+    Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Option Two', 'accepted' => false]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->assertSee('Option One')
+        ->assertSee('Option Two')
+        ->assertDontSee('unvoted location');
+});
+
+test('once a location is accepted, unvoted locations collapse behind a toggle', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $accepted = Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Winner', 'accepted' => true]);
+    Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Runner Up', 'accepted' => false]);
+    Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Also Ran', 'accepted' => false]);
+    $this->actingAs($owner);
+
+    $component = Volt::test('trips.show', ['trip' => $trip])
+        ->assertSee('Winner')
+        ->assertDontSee('Runner Up')
+        ->assertDontSee('Also Ran')
+        ->assertSee('Show 2 unvoted locations');
+
+    $component->call('toggleShowAllLocations')
+        ->assertSee('Winner')
+        ->assertSee('Runner Up')
+        ->assertSee('Also Ran')
+        ->assertSee('Hide unvoted locations');
+
+    $component->call('toggleShowAllLocations')
+        ->assertDontSee('Runner Up')
+        ->assertDontSee('Also Ran');
+});
+
+test('the unvoted-locations toggle does not appear when there is nothing to hide', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    Location::factory()->create(['trip_id' => $trip->id, 'accepted' => true]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->assertDontSee('unvoted location');
 });
 
 test('unrelated user cannot accept a location', function () {
@@ -209,6 +258,30 @@ test('owner can add a new participant', function () {
         ->call('addParticipant', $newUser->id);
 
     expect($trip->fresh()->participants->pluck('id'))->toContain($newUser->id);
+});
+
+test('participants are assigned color slots in a fixed cycle that wraps back to slot 1', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $newUsers = User::factory()->count(6)->create();
+    $this->actingAs($owner);
+
+    $component = Volt::test('trips.show', ['trip' => $trip]);
+    foreach ($newUsers as $user) {
+        $component->call('addParticipant', $user->id);
+    }
+
+    // Query the pivot table directly, ordered by its own id, so this doesn't
+    // depend on the participants() relation's (unordered) default query.
+    $slots = DB::table('trip_user')
+        ->where('trip_id', $trip->id)
+        ->orderBy('id')
+        ->pluck('color_slot')
+        ->map(fn ($slot) => (int) $slot);
+
+    // Slot 1 is reserved for the creator, so participants cycle [2, 3, 5, 7, 1],
+    // wrapping back to slot 1 (matching the creator's color) on the 6th person.
+    expect($slots->values()->all())->toBe([2, 3, 5, 7, 1, 2]);
 });
 
 test('adding the creator as a participant is a no-op', function () {

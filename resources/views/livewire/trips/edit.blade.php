@@ -45,6 +45,18 @@
                 </flux:field>
             </div>
 
+            <flux:field>
+                <flux:input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    wire:model="budget"
+                    :label="__('Budget')"
+                    :placeholder="__('Optional')"
+                    prefix="$"
+                />
+            </flux:field>
+
             <flux:separator />
 
             <div class="flex items-center gap-3">

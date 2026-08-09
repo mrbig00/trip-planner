@@ -1,13 +1,13 @@
 <?php
 
-use App\Enums\ExpenseSplitType;
-use App\Models\Expense;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Expense;
+use App\Enums\ExpenseSplitType;
 
 function tripWithLoadedExpenses(Trip $trip): Trip
 {
-    return $trip->fresh(['creator', 'participants', 'expenses.shares']);
+    return $trip->fresh(['creator', 'participants', 'expenses.shares', 'settlements']);
 }
 
 test('a single equally split expense produces opposite balances for payer and sharer', function () {
@@ -107,4 +107,62 @@ test('mixed split types across multiple expenses keep the zero-sum invariant', f
         ->and($balances->get($owner->id))->toBe(-500)
         ->and($balances->get($participantA->id))->toBe(7500)
         ->and($balances->get($participantB->id))->toBe(-7000);
+});
+
+test('a recorded settlement nets out of both parties balances', function () {
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $trip->participants()->attach($participant->id);
+
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'unit_price' => 20.00,
+        'quantity' => 1,
+    ]);
+    $expense->shares()->createMany([
+        ['user_id' => $owner->id, 'amount' => 10.00],
+        ['user_id' => $participant->id, 'amount' => 10.00],
+    ]);
+
+    $trip->settlements()->create([
+        'from_user_id' => $participant->id,
+        'to_user_id' => $owner->id,
+        'amount_cents' => 1000,
+    ]);
+
+    $balances = tripWithLoadedExpenses($trip)->balances();
+
+    expect($balances->get($owner->id))->toBe(0)
+        ->and($balances->get($participant->id))->toBe(0);
+});
+
+test('a partial settlement leaves the remaining balance', function () {
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $trip->participants()->attach($participant->id);
+
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'unit_price' => 20.00,
+        'quantity' => 1,
+    ]);
+    $expense->shares()->createMany([
+        ['user_id' => $owner->id, 'amount' => 10.00],
+        ['user_id' => $participant->id, 'amount' => 10.00],
+    ]);
+
+    $trip->settlements()->create([
+        'from_user_id' => $participant->id,
+        'to_user_id' => $owner->id,
+        'amount_cents' => 400,
+    ]);
+
+    $balances = tripWithLoadedExpenses($trip)->balances();
+
+    expect($balances->get($owner->id))->toBe(600)
+        ->and($balances->get($participant->id))->toBe(-600);
 });

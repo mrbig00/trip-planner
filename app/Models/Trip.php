@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use App\Support\Money;
+use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Support\Collection;
 
 class Trip extends Model
 {
@@ -26,6 +26,7 @@ class Trip extends Model
         'user_id',
         'start_date',
         'end_date',
+        'budget',
     ];
 
     /**
@@ -38,6 +39,7 @@ class Trip extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'budget' => 'decimal:2',
         ];
     }
 
@@ -55,7 +57,30 @@ class Trip extends Model
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'trip_user')
+            ->withPivot(['color_slot'])
             ->withTimestamps();
+    }
+
+    /**
+     * Get the given user's fixed identity color slot for this trip (one of
+     * 1/2/3/5/7 — see resources/css/app.css's --color-participant-* tokens),
+     * or null if they aren't a member. The creator always gets slot 1; every
+     * other participant's slot is assigned once, at attach time, and never
+     * changes — see App\Livewire\Trips\Show::addParticipant().
+     */
+    public function colorSlotFor(User $user): ?int
+    {
+        if ($user->id === $this->user_id) {
+            return 1;
+        }
+
+        $participant = $this->participants->firstWhere('id', $user->id);
+
+        // Cast explicitly: the pivot's color_slot has no declared cast, and the
+        // Postgres driver returns unwrapped numeric columns as strings.
+        return $participant?->pivot->color_slot !== null
+            ? (int) $participant->pivot->color_slot
+            : null;
     }
 
     /**
@@ -75,6 +100,14 @@ class Trip extends Model
     }
 
     /**
+     * Get the recorded settlements for the trip.
+     */
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(Settlement::class);
+    }
+
+    /**
      * Get the trip's creator and participants as a single deduplicated collection of users.
      */
     public function members(): Collection
@@ -83,9 +116,42 @@ class Trip extends Model
     }
 
     /**
+     * Get a short "where this trip stands in time" label for the header
+     * chip, or null when neither date is set (the chip simply doesn't
+     * render — no fabricated threshold).
+     */
+    public function countdownLabel(): ?string
+    {
+        if (! $this->start_date && ! $this->end_date) {
+            return null;
+        }
+
+        $today = today();
+
+        if ($this->end_date && $today->greaterThan($this->end_date)) {
+            return __('Trip ended');
+        }
+
+        if ($this->start_date && $today->equalTo($this->start_date)) {
+            return __('Starting today');
+        }
+
+        if ($this->start_date && $today->lessThan($this->start_date)) {
+            $days = (int) $today->diffInDays($this->start_date);
+            $unit = $days === 1 ? __('day') : __('days');
+
+            return __(':days :unit to go', ['days' => $days, 'unit' => $unit]);
+        }
+
+        return __('Happening now');
+    }
+
+    /**
      * Calculate each member's balance in integer cents: positive means the
      * member is owed money, negative means the member owes money. Requires
-     * `expenses.shares` to be eager-loaded.
+     * `expenses.shares` to be eager-loaded. Nets out recorded settlements, so
+     * this always reflects who owes whom *right now*, not the gross figure
+     * before anyone paid anyone back.
      */
     public function balances(): Collection
     {
@@ -100,6 +166,18 @@ class Trip extends Model
                 if ($balances->has($share->user_id)) {
                     $balances[$share->user_id] -= Money::toCents((string) $share->amount);
                 }
+            }
+        }
+
+        foreach ($this->settlements as $settlement) {
+            // A settlement of amount_cents from A to B means A already paid B:
+            // A's remaining debt shrinks, B's remaining receivable shrinks.
+            if ($balances->has($settlement->from_user_id)) {
+                $balances[$settlement->from_user_id] += $settlement->amount_cents;
+            }
+
+            if ($balances->has($settlement->to_user_id)) {
+                $balances[$settlement->to_user_id] -= $settlement->amount_cents;
             }
         }
 

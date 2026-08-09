@@ -4,19 +4,21 @@ declare(strict_types=1);
 
 namespace App\Livewire\Trips;
 
-use App\Actions\Expenses\BuildExpenseShares;
-use App\Actions\Expenses\CalculateSettlementPlan;
-use App\Actions\Expenses\ValidateExpenseSplit;
-use App\Enums\ExpenseSplitType;
-use App\Models\LocationComment;
 use App\Models\Trip;
 use App\Models\User;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\View\View;
+use App\Support\Money;
 use Livewire\Component;
+use Illuminate\View\View;
+use App\Models\Settlement;
+use App\Enums\ExpenseSplitType;
+use App\Models\LocationComment;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Actions\Expenses\CalculateSettlementPlan;
 
 class Show extends Component
 {
@@ -51,6 +53,8 @@ class Show extends Component
 
     public ?int $expandedLocationId = null;
 
+    public bool $showAllLocations = false;
+
     public bool $showAddCommentModal = false;
 
     public ?int $selectedLocationIdForComment = null;
@@ -60,7 +64,7 @@ class Show extends Component
      */
     public function mount(Trip $trip): void
     {
-        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares']);
+        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares', 'settlements']);
     }
 
     public function updatedExpandedLocationId(): void
@@ -190,7 +194,13 @@ class Show extends Component
             return;
         }
 
-        $this->trip->participants()->attach($userId);
+        // Fixed color-slot cycle; slot 1 is reserved for the creator (see
+        // Trip::colorSlotFor()) so participants start from slot 2 and wrap
+        // back to slot 1 once 5 colors are already in use.
+        $slotCycle = [2, 3, 5, 7, 1];
+        $slot = $slotCycle[$this->trip->participants()->count() % 5];
+
+        $this->trip->participants()->attach($userId, ['color_slot' => $slot]);
 
         $this->participantSearch = '';
         $this->trip->refresh();
@@ -307,6 +317,16 @@ class Show extends Component
     }
 
     /**
+     * Toggle whether pending (not-yet-accepted) locations are shown. Once a
+     * location is accepted, it's the only one shown by default — the rest
+     * stay collapsed behind this toggle until asked for.
+     */
+    public function toggleShowAllLocations(): void
+    {
+        $this->showAllLocations = ! $this->showAllLocations;
+    }
+
+    /**
      * Delete an expense.
      */
     public function deleteExpense(int $expenseId): void
@@ -318,6 +338,7 @@ class Show extends Component
             abort(403);
         }
 
+        $expense->update(['deleted_by' => Auth::id()]);
         $expense->delete();
 
         $this->trip->refresh();
@@ -422,6 +443,7 @@ class Show extends Component
                 'unit_price' => $validated['editingExpense']['unit_price'],
                 'quantity' => $validated['editingExpense']['quantity'],
                 'user_id' => $validated['editingExpense']['user_id'],
+                'updated_by' => Auth::id(),
                 'split_type' => $splitType->value,
             ]);
 
@@ -439,6 +461,150 @@ class Show extends Component
 
         $this->closeEditExpenseModal();
         $this->trip->refresh();
+    }
+
+    /**
+     * Get the trip's total spend across all expenses.
+     */
+    public function getTotalExpensesProperty(): float
+    {
+        return (float) $this->trip->expenses->sum('total');
+    }
+
+    /**
+     * Get the trip's most recent activity, merged from every already-timestamped
+     * source: location comments, votes (pivot timestamps), location acceptance,
+     * expenses (added/edited/deleted), and settlements. Newest first, capped at 5.
+     *
+     * Location proposals have no attributable "who added this" column in the
+     * data model (locations.user_id doesn't exist), so unlike the other event
+     * types, "accepted" events render without an actor — an honest reflection
+     * of what's actually recorded, not a guess. Expense edits/deletes are the
+     * same way: they render actor-less unless updated_by/deleted_by was
+     * actually recorded (it always is going forward, via saveExpense/deleteExpense).
+     */
+    public function getRecentActivityProperty(): Collection
+    {
+        $events = collect();
+        $members = $this->trip->members()->keyBy('id');
+
+        foreach ($this->trip->locations as $location) {
+            foreach ($location->comments as $comment) {
+                $events->push([
+                    'type' => 'comment',
+                    'at' => $comment->created_at,
+                    'user' => $comment->user,
+                    'text' => __(':user commented on :location', ['user' => $comment->user->fullName(), 'location' => $location->name]),
+                ]);
+            }
+
+            foreach ($location->votes as $voter) {
+                $events->push([
+                    'type' => 'vote',
+                    'at' => $voter->pivot->created_at,
+                    'user' => $voter,
+                    'text' => __(':user voted for :location', ['user' => $voter->fullName(), 'location' => $location->name]),
+                ]);
+            }
+
+            if ($location->accepted_at) {
+                $events->push([
+                    'type' => 'accepted',
+                    'at' => $location->accepted_at,
+                    'user' => null,
+                    'text' => __(':location was accepted', ['location' => $location->name]),
+                ]);
+            }
+        }
+
+        foreach ($this->trip->expenses as $expense) {
+            $amount = number_format($expense->total, 2);
+
+            $events->push([
+                'type' => 'expense',
+                'at' => $expense->created_at,
+                'user' => $expense->owner,
+                'text' => $expense->owner
+                    ? __(':user added expense :expense ($:amount)', ['user' => $expense->owner->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense added: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+            ]);
+
+            // updated_by is only ever set by saveExpense(), never on creation,
+            // so its presence alone tells us the expense has been edited since.
+            if ($expense->updated_by) {
+                $editor = $members->get($expense->updated_by);
+                $events->push([
+                    'type' => 'expense_edited',
+                    'at' => $expense->updated_at,
+                    'user' => $editor,
+                    'text' => $editor
+                        ? __(':user edited expense :expense ($:amount)', ['user' => $editor->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                        : __('Expense edited: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                ]);
+            }
+        }
+
+        foreach ($this->trip->expenses()->onlyTrashed()->get() as $expense) {
+            $amount = number_format($expense->total, 2);
+            $deleter = $members->get($expense->deleted_by);
+
+            $events->push([
+                'type' => 'expense_deleted',
+                'at' => $expense->deleted_at,
+                'user' => $deleter,
+                'text' => $deleter
+                    ? __(':user deleted expense :expense ($:amount)', ['user' => $deleter->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense deleted: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+            ]);
+        }
+
+        foreach ($this->trip->settlements as $settlement) {
+            $from = $members->get($settlement->from_user_id);
+            $to = $members->get($settlement->to_user_id);
+
+            if ($from && $to) {
+                $events->push([
+                    'type' => 'settlement',
+                    'at' => $settlement->created_at,
+                    'user' => $from,
+                    'text' => __(':from settled $:amount with :to', [
+                        'from' => $from->fullName(),
+                        'amount' => number_format($settlement->amount_cents / 100, 2),
+                        'to' => $to->fullName(),
+                    ]),
+                ]);
+            }
+        }
+
+        return $events->sortByDesc('at')->take(5)->values();
+    }
+
+    /**
+     * Get each trip member's share of total spending, for the Cost Breakdown
+     * chart. Uses each expense's shares (who's responsible for how much),
+     * not who fronted the cash — the shares always sum exactly to each
+     * expense's total (see App\Actions\Expenses\BuildExpenseShares), so this
+     * always reconciles with getTotalExpensesProperty().
+     */
+    public function getCostBreakdownProperty(): Collection
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return $this->trip->expenses
+            ->flatMap->shares
+            ->groupBy('user_id')
+            ->map(function ($shares, $userId) use ($members) {
+                $user = $members->get((int) $userId);
+
+                return [
+                    'user' => $user,
+                    'amountCents' => $shares->sum(fn ($share) => Money::toCents((string) $share->amount)),
+                    'slot' => $user ? $this->trip->colorSlotFor($user) : null,
+                ];
+            })
+            ->filter(fn ($row) => $row['user'] !== null)
+            ->sortByDesc('amountCents')
+            ->values();
     }
 
     /**
@@ -470,6 +636,71 @@ class Show extends Component
     }
 
     /**
+     * Record a suggested transfer as settled.
+     *
+     * The amount is re-derived from the live server-side balances rather than
+     * trusted outright: `wire:click` arguments are rendered into the DOM, so a
+     * tampered value must never be allowed to exceed what's actually owed.
+     */
+    public function markTransferSettled(int $fromUserId, int $toUserId, int $amountCents): void
+    {
+        $memberIds = $this->trip->members()->pluck('id');
+
+        if ($fromUserId === $toUserId || ! $memberIds->contains($fromUserId) || ! $memberIds->contains($toUserId)) {
+            abort(403);
+        }
+
+        $this->ensureCanRecordSettlement($fromUserId, $toUserId);
+
+        if ($amountCents <= 0) {
+            abort(422);
+        }
+
+        DB::transaction(function () use ($fromUserId, $toUserId, $amountCents): void {
+            Trip::query()->whereKey($this->trip->getKey())->lockForUpdate()->first();
+
+            $trip = $this->trip->fresh(['creator', 'participants', 'expenses.shares', 'settlements']);
+
+            $balances = $trip->balances();
+            $maxSettleable = min(
+                max(0, -$balances->get($fromUserId, 0)),
+                max(0, $balances->get($toUserId, 0)),
+            );
+
+            if ($amountCents > $maxSettleable) {
+                abort(422);
+            }
+
+            $trip->settlements()->create([
+                'from_user_id' => $fromUserId,
+                'to_user_id' => $toUserId,
+                'amount_cents' => $amountCents,
+                'recorded_by_user_id' => Auth::id(),
+            ]);
+        });
+
+        $this->trip->refresh();
+    }
+
+    /**
+     * Get the trip's most recent settlements, for a small read-only history list.
+     */
+    public function getRecentSettlementsProperty(): Collection
+    {
+        $members = $this->trip->members()->keyBy('id');
+
+        return $this->trip->settlements
+            ->sortByDesc('created_at')
+            ->take(5)
+            ->map(fn (Settlement $settlement) => [
+                'id' => $settlement->id,
+                'from' => $members->get($settlement->from_user_id),
+                'to' => $members->get($settlement->to_user_id),
+                'amountCents' => $settlement->amount_cents,
+            ])->values();
+    }
+
+    /**
      * Abort with a 403 unless the current user is the trip creator.
      */
     private function ensureIsCreator(): void
@@ -485,6 +716,21 @@ class Show extends Component
     private function ensureIsCreatorOrParticipant(): void
     {
         if ($this->trip->user_id !== Auth::id() && ! $this->trip->participants->contains(Auth::id())) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Abort with a 403 unless the current user is the trip creator or one of the
+     * two specific parties on this transfer (deliberately narrower than
+     * ensureIsCreatorOrParticipant: an unrelated participant shouldn't be able
+     * to fabricate a settlement between two other members).
+     */
+    private function ensureCanRecordSettlement(int $fromUserId, int $toUserId): void
+    {
+        $userId = Auth::id();
+
+        if ($userId !== $this->trip->user_id && $userId !== $fromUserId && $userId !== $toUserId) {
             abort(403);
         }
     }

@@ -73,6 +73,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the URL of the user's Dicebear avatar, stable per name.
+     */
+    public function avatarUrl(): string
+    {
+        return 'https://api.dicebear.com/9.x/avataaars/svg?seed='.hash('sha256', $this->fullName());
+    }
+
+    /**
      * Get the trips created by the user.
      */
     public function createdTrips(): HasMany
