@@ -1,4 +1,23 @@
-<div class="flex h-full w-full flex-1 flex-col gap-6">
+@php use Illuminate\Support\Str; @endphp
+
+<div
+    class="flex h-full w-full flex-1 flex-col gap-6"
+    x-data="{
+        confirmHeading: '',
+        confirmText: '',
+        confirmLabel: '{{ __('Delete') }}',
+        confirmVariant: 'danger',
+        confirmAction: null,
+        confirmDestroy(heading, text, action, label = '{{ __('Delete') }}', variant = 'danger') {
+            this.confirmHeading = heading;
+            this.confirmText = text;
+            this.confirmAction = action;
+            this.confirmLabel = label;
+            this.confirmVariant = variant;
+            this.$dispatch('modal-show', { name: 'confirm-action' });
+        },
+    }"
+>
     <div class="flex items-center justify-between">
         <div>
             <flux:heading size="xl">{{ __('My Trips') }}</flux:heading>
@@ -44,20 +63,14 @@
                                 <flux:menu.item :href="route('trips.edit', $trip)" wire:navigate>
                                     {{ __('Edit') }}
                                 </flux:menu.item>
-                                <flux:modal.trigger name="delete-trip-{{ $trip->id }}">
-                                    <flux:menu.item variant="danger">
-                                        {{ __('Delete') }}
-                                    </flux:menu.item>
-                                </flux:modal.trigger>
+                                <flux:menu.item
+                                    variant="danger"
+                                    x-on:click="confirmDestroy('{{ __('Delete trip?') }}', '{{ __('Are you sure you want to delete this trip? This action cannot be undone.') }}', () => $wire.delete({{ $trip->id }}))"
+                                >
+                                    {{ __('Delete') }}
+                                </flux:menu.item>
                             </flux:menu>
                         </flux:dropdown>
-
-                        <x-confirm-modal
-                            name="delete-trip-{{ $trip->id }}"
-                            :heading="__('Delete trip?')"
-                            :text="__('Are you sure you want to delete this trip? This action cannot be undone.')"
-                            action="delete({{ $trip->id }})"
-                        />
                     @endif
                 </div>
 
@@ -67,17 +80,17 @@
                     </flux:badge>
                     @if ($trip->participants->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->participants->count() }} {{ \Illuminate\Support\Str::plural(__('participant'), $trip->participants->count()) }}
+                            {{ $trip->participants->count() }} {{ Str::plural(__('participant'), $trip->participants->count()) }}
                         </flux:badge>
                     @endif
                     @if ($trip->locations->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->locations->count() }} {{ \Illuminate\Support\Str::plural(__('location'), $trip->locations->count()) }}
+                            {{ $trip->locations->count() }} {{ Str::plural(__('location'), $trip->locations->count()) }}
                         </flux:badge>
                     @endif
                     @if ($trip->expenses->count() > 0)
                         <flux:badge variant="ghost" size="sm" class="bg-neutral-700/50 text-neutral-300">
-                            {{ $trip->expenses->count() }} {{ \Illuminate\Support\Str::plural(__('expense'), $trip->expenses->count()) }}
+                            {{ $trip->expenses->count() }} {{ Str::plural(__('expense'), $trip->expenses->count()) }}
                         </flux:badge>
                     @endif
                 </div>
@@ -99,4 +112,6 @@
             </flux:callout>
         @endforelse
     </div>
+
+    <x-confirm-modal wire-target="delete" />
 </div>
