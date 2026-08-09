@@ -44,6 +44,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Global Settle Up routes
     Volt::route('settle-up', 'settle-up.index')->name('settle-up.index');
+
+    // Activity routes
+    Volt::route('activity', 'activity.index')->name('activity.index');
 });
 
 require __DIR__.'/settings.php';
