@@ -21,6 +21,9 @@
                     <flux:sidebar.item icon="currency-dollar" :href="route('budgets.index')" :current="request()->routeIs('budgets.*')" wire:navigate>
                         {{ __('Budgets') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="users" :href="route('people.index')" :current="request()->routeIs('people.*')" wire:navigate>
+                        {{ __('People') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

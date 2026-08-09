@@ -38,6 +38,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Budget routes
     Volt::route('budgets', 'budgets.index')->name('budgets.index');
+
+    // People routes
+    Volt::route('people', 'people.index')->name('people.index');
 });
 
 require __DIR__.'/settings.php';
