@@ -280,7 +280,7 @@
                                     @if ($expandedLocationId === $location->id)
                                         <div class="space-y-3">
                                             @foreach ($location->comments as $comment)
-                                                <div class="flex items-start gap-3 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700/20">
+                                                <div wire:key="comment-{{ $comment->id }}" class="flex items-start gap-3 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700/20">
                                                     <x-participant-avatar
                                                         :name="$comment->user->fullName()"
                                                         :initials="$comment->user->initials()"
@@ -570,7 +570,7 @@
             @if ($trip->participants->count() > 0)
                 <div class="flex flex-wrap gap-3">
                     @foreach ($trip->participants as $participant)
-                        <div class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div wire:key="participant-{{ $participant->id }}" class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200 dark:border-neutral-700">
                             <x-participant-avatar :name="$participant->fullName()" :initials="$participant->initials()" :color-slot="$trip->colorSlotFor($participant)" size="sm" />
                             <flux:badge>{{ $participant->fullName() }}</flux:badge>
                             @if ($trip->user_id === Auth::id())

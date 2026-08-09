@@ -17,7 +17,12 @@
             <flux:modal.close>
                 <flux:button variant="filled">{{ __('Cancel') }}</flux:button>
             </flux:modal.close>
-            <flux:button :variant="$confirmVariant" wire:click="{{ $action }}">
+            <flux:button
+                :variant="$confirmVariant"
+                wire:click="{{ $action }}"
+                wire:loading.attr="disabled"
+                wire:target="{{ $action }}"
+            >
                 {{ $confirmLabel }}
             </flux:button>
         </div>
