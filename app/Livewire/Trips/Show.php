@@ -468,7 +468,7 @@ class Show extends Component
      */
     public function getTotalExpensesProperty(): float
     {
-        return (float) $this->trip->expenses->sum('total');
+        return $this->trip->total_spent;
     }
 
     /**

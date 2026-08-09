@@ -22,12 +22,7 @@ class Index extends Component
     public function trips()
     {
         return Trip::query()
-            ->where(function ($query) {
-                $query->where('user_id', Auth::id())
-                    ->orWhereHas('participants', function ($q) {
-                        $q->where('user_id', Auth::id());
-                    });
-            })
+            ->visibleTo(Auth::id())
             ->when($this->search, fn ($q) => $q->where('name', 'like', "%{$this->search}%"))
             ->with(['creator', 'participants', 'locations', 'expenses'])
             ->latest()
