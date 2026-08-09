@@ -26,6 +26,10 @@ class Create extends Component
      */
     public function store(): void
     {
+        if ($this->budget === '') {
+            $this->budget = null;
+        }
+
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],

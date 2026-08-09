@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -76,11 +77,20 @@ class Location extends Model
      */
     public function accept(): void
     {
-        // Unaccept all locations in this trip
-        $this->trip->locations()->where('id', '!=', $this->id)->update(['accepted' => false, 'accepted_at' => null]);
+        DB::transaction(function (): void {
+            // Lock the trip row so concurrent accept() calls for the same
+            // trip serialize instead of both clearing and setting themselves.
+            $this->trip()->lockForUpdate()->firstOrFail();
 
-        // Accept this location
-        $this->update(['accepted' => true, 'accepted_at' => now()]);
+            // Unaccept all locations in this trip
+            static::query()
+                ->where('trip_id', $this->trip_id)
+                ->where('id', '!=', $this->id)
+                ->update(['accepted' => false, 'accepted_at' => null]);
+
+            // Accept this location
+            $this->update(['accepted' => true, 'accepted_at' => now()]);
+        });
     }
 
     /**

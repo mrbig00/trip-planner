@@ -308,3 +308,17 @@ test('users can update a trip\'s budget', function () {
 
     expect((string) $trip->fresh()->budget)->toBe('999.99');
 });
+
+test('clearing an existing budget on edit sets it to null', function () {
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id, 'budget' => 2000]);
+    $this->actingAs($user);
+
+    Volt::test('trips.edit', ['trip' => $trip])
+        ->set('budget', '')
+        ->call('update')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('trips.show', $trip));
+
+    expect($trip->fresh()->budget)->toBeNull();
+});

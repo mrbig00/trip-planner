@@ -656,22 +656,28 @@ class Show extends Component
             abort(422);
         }
 
-        $balances = $this->trip->balances();
-        $maxSettleable = min(
-            max(0, -$balances->get($fromUserId, 0)),
-            max(0, $balances->get($toUserId, 0)),
-        );
+        DB::transaction(function () use ($fromUserId, $toUserId, $amountCents): void {
+            Trip::query()->whereKey($this->trip->getKey())->lockForUpdate()->first();
 
-        if ($amountCents > $maxSettleable) {
-            abort(422);
-        }
+            $trip = $this->trip->fresh(['creator', 'participants', 'expenses.shares', 'settlements']);
 
-        $this->trip->settlements()->create([
-            'from_user_id' => $fromUserId,
-            'to_user_id' => $toUserId,
-            'amount_cents' => $amountCents,
-            'recorded_by_user_id' => Auth::id(),
-        ]);
+            $balances = $trip->balances();
+            $maxSettleable = min(
+                max(0, -$balances->get($fromUserId, 0)),
+                max(0, $balances->get($toUserId, 0)),
+            );
+
+            if ($amountCents > $maxSettleable) {
+                abort(422);
+            }
+
+            $trip->settlements()->create([
+                'from_user_id' => $fromUserId,
+                'to_user_id' => $toUserId,
+                'amount_cents' => $amountCents,
+                'recorded_by_user_id' => Auth::id(),
+            ]);
+        });
 
         $this->trip->refresh();
     }

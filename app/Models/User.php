@@ -77,7 +77,7 @@ class User extends Authenticatable
      */
     public function avatarUrl(): string
     {
-        return 'https://api.dicebear.com/9.x/avataaars/svg?seed='.urlencode($this->fullName());
+        return 'https://api.dicebear.com/9.x/avataaars/svg?seed='.hash('sha256', $this->fullName());
     }
 
     /**
