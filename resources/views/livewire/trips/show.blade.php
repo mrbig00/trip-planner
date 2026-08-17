@@ -154,10 +154,10 @@
                 <div class="space-y-3">
                     @foreach ($visibleLocations->sortByDesc('accepted')->values() as $location)
                             <div wire:key="location-{{ $location->id }}" class="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-2">
-                                        <flux:text class="font-medium">{{ $location->name }}</flux:text>
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="flex-1 min-w-[160px]">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <flux:text class="font-medium truncate">{{ $location->name }}</flux:text>
                                         @php
                                             $voteCount = $location->votes->count();
                                             $hasVoted = $location->hasVoteFrom(Auth::user());
@@ -167,7 +167,7 @@
                                                 type="button"
                                                 wire:click="showVoters({{ $location->id }})"
                                                 title="{{ __('View voters') }}"
-                                                class="inline-flex items-center gap-1 rounded-full bg-neutral-700/50 text-neutral-400 text-xs px-2 py-0.5 hover:text-neutral-200 cursor-pointer"
+                                                class="inline-flex items-center gap-1 shrink-0 rounded-full bg-neutral-100 text-neutral-500 text-xs px-2 py-0.5 hover:text-neutral-900 cursor-pointer dark:bg-neutral-700/50 dark:text-neutral-400 dark:hover:text-neutral-200"
                                             >
                                                 <flux:icon.heart variant="mini" class="h-3 w-3" />
                                                 {{ $voteCount }}
@@ -188,12 +188,12 @@
                                         </div>
                                     @endif
                                     @if ($location->link)
-                                        <flux:link :href="$location->link" target="_blank" class="text-xs mt-1 text-blue-400 hover:text-blue-300">
+                                        <flux:link :href="$location->link" target="_blank" class="text-xs mt-1 text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
                                             {{ __('View Link') }}
                                         </flux:link>
                                     @endif
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
                                 <flux:button
                                     variant="ghost"
                                     size="sm"
@@ -202,7 +202,7 @@
                                     already sets `text-zinc-800 dark:text-white`, and Tailwind resolves same-specificity
                                     utility conflicts by order in the compiled stylesheet, not by order in this class
                                     attribute, so a plain override class would otherwise silently lose. --}}
-                                    class="{{ $hasVoted ? '!text-red-500 hover:!text-red-400' : '!text-neutral-300 hover:!text-white' }}"
+                                    class="{{ $hasVoted ? '!text-red-500 hover:!text-red-400' : '!text-neutral-500 hover:!text-neutral-900 dark:!text-neutral-300 dark:hover:!text-white' }}"
                                 >
                                     {{-- inline-block overrides Tailwind's `svg { display: block }` preflight rule: without
                                     it, the icon and label get wrapped together in a plain (non-flex) <span> by Flux's
@@ -220,7 +220,7 @@
                                             variant="ghost"
                                             size="sm"
                                             wire:click="acceptLocation({{ $location->id }})"
-                                            class="text-neutral-300 hover:text-white"
+                                            class="text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white"
                                         >
                                             {{ __('Accept') }}
                                         </flux:button>
@@ -228,7 +228,7 @@
                                 @endif
                                 @if ($trip->user_id === Auth::id())
                                     <flux:dropdown>
-                                        <flux:button variant="ghost" size="sm" icon-only class="text-neutral-400 hover:text-white">
+                                        <flux:button variant="ghost" size="sm" icon-only class="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white">
                                             <flux:icon.ellipsis-vertical />
                                         </flux:button>
                                         <flux:menu>
@@ -248,14 +248,14 @@
                             </div>
 
                             {{-- Comments Section --}}
-                            <div class="mt-3 pt-3 border-t border-neutral-700">
+                            <div class="mt-3 pt-3 border-t border-neutral-200 dark:border-neutral-700">
                                 @if ($location->comments->count() > 0)
                                     <div class="flex items-center justify-between mb-3">
                                         <flux:button
                                             variant="ghost"
                                             size="sm"
                                             wire:click="toggleLocationComments({{ $location->id }})"
-                                            class="text-xs text-neutral-400 hover:text-white"
+                                            class="text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
                                         >
                                             {{ $expandedLocationId === $location->id ? __('Hide') : __('Show') }} {{ $location->comments->count() }} {{ $location->comments->count() === 1 ? __('comment') : __('comments') }}
                                         </flux:button>
@@ -263,7 +263,7 @@
                                             variant="ghost"
                                             size="sm"
                                             wire:click="openAddCommentModal({{ $location->id }})"
-                                            class="text-xs text-blue-400 hover:text-blue-300"
+                                            class="text-xs text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
                                         >
                                             {{ __('Add Comment') }}
                                         </flux:button>
@@ -284,7 +284,7 @@
                                                             <flux:text class="text-sm font-medium">{{ $comment->user->fullName() }}</flux:text>
                                                             <flux:text class="text-xs text-neutral-500">{{ $comment->created_at->diffForHumans() }}</flux:text>
                                                         </div>
-                                                        <flux:text class="text-sm text-neutral-300">{{ $comment->content }}</flux:text>
+                                                        <flux:text class="text-sm">{{ $comment->content }}</flux:text>
                                                     </div>
                                                     @if ($comment->user_id === Auth::id() || $trip->user_id === Auth::id())
                                                         <flux:button
@@ -307,7 +307,7 @@
                                         variant="ghost"
                                         size="sm"
                                         wire:click="openAddCommentModal({{ $location->id }})"
-                                        class="text-xs text-blue-400 hover:text-blue-300"
+                                        class="text-xs text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
                                     >
                                         {{ __('Add Comment') }}
                                     </flux:button>
@@ -321,7 +321,7 @@
                             variant="ghost"
                             size="sm"
                             wire:click="toggleShowAllLocations"
-                            class="text-xs text-neutral-400 hover:text-white"
+                            class="text-xs text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
                         >
                             @if ($showAllLocations)
                                 {{ __('Hide unvoted locations') }}
@@ -352,39 +352,125 @@
                 </div>
             </div>
             @if ($trip->expenses->count() > 0)
-                <div class="overflow-x-auto">
+                {{-- Below md, the table's 8 columns don't fit the viewport without
+                horizontal scrolling, so this stacks each expense into a card
+                instead — the table returns once there's room for it. --}}
+                <div class="space-y-3 md:hidden">
+                    @foreach ($trip->expenses as $expense)
+                        @php
+                            $canEditExpense = $expense->user_id === Auth::id() || $trip->user_id === Auth::id();
+                        @endphp
+                        <div wire:key="expense-card-{{ $expense->id }}" class="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <flux:text class="font-medium">{{ $expense->name }}</flux:text>
+                                <flux:text class="font-semibold shrink-0">${{ number_format($expense->total, 2) }}</flux:text>
+                            </div>
+
+                            @if ($expense->description)
+                                <flux:text class="text-sm mt-1 line-clamp-2">{{ $expense->description }}</flux:text>
+                            @elseif ($canEditExpense)
+                                <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="block text-sm italic text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 mt-1">
+                                    {{ __('+ Add description') }}
+                                </button>
+                            @endif
+
+                            <div class="mt-2 flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    @if ($expense->owner)
+                                        <x-participant-avatar
+                                            :name="$expense->owner->fullName()"
+                                            :initials="$expense->owner->initials()"
+                                            :color-slot="$trip->colorSlotFor($expense->owner)"
+                                            size="xs"
+                                        />
+                                        <flux:text class="text-sm truncate">{{ $expense->owner->fullName() }}</flux:text>
+                                    @endif
+                                </div>
+                                <flux:text class="text-xs text-neutral-500 shrink-0">
+                                    ${{ number_format($expense->unit_price, 2) }} &times; {{ $expense->quantity }}
+                                </flux:text>
+                            </div>
+
+                            <div class="mt-2 flex items-center justify-between gap-3">
+                                @if ($expense->link)
+                                    <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
+                                        {{ __('Open link') }}
+                                    </flux:link>
+                                @elseif ($canEditExpense)
+                                    <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                                        {{ __('+ Add link') }}
+                                    </button>
+                                @else
+                                    <span></span>
+                                @endif
+
+                                @if ($canEditExpense)
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon-only
+                                            wire:click="openEditExpenseModal({{ $expense->id }})"
+                                            class="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+                                            title="{{ __('Edit') }}"
+                                        >
+                                            <flux:icon.pencil class="h-4 w-4" />
+                                        </flux:button>
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon-only
+                                            class="text-red-400/70 hover:text-red-400"
+                                            title="{{ __('Delete') }}"
+                                            x-on:click="confirmDestroy('{{ __('Delete expense?') }}', '{{ __('Are you sure you want to delete this expense? This action cannot be undone.') }}', () => $wire.deleteExpense({{ $expense->id }}))"
+                                        >
+                                            <flux:icon.x-mark class="h-4 w-4" />
+                                        </flux:button>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <div class="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800/30 p-3">
+                        <flux:text class="font-semibold">{{ __('Total') }}</flux:text>
+                        <flux:text class="font-semibold text-lg">${{ number_format($this->totalExpenses, 2) }}</flux:text>
+                    </div>
+                </div>
+
+                <div class="hidden md:block overflow-x-auto">
                     <table class="w-full">
                         <thead>
-                            <tr class="border-b border-neutral-700">
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-300">
+                            <tr class="border-b border-neutral-200 dark:border-neutral-700">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Name') }}
                                 </th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Description') }}
                                 </th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Link') }}
                                 </th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Owner') }}
                                 </th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Unit Price') }}
                                 </th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Quantity') }}
                                 </th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Total') }}
                                 </th>
-                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-300">
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-neutral-600 dark:text-neutral-300">
                                     {{ __('Actions') }}
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach ($trip->expenses as $expense)
-                                <tr wire:key="expense-{{ $expense->id }}" class="border-b border-neutral-700/50 hover:bg-neutral-800/30 transition-colors">
+                                <tr wire:key="expense-{{ $expense->id }}" class="border-b border-neutral-200 hover:bg-neutral-100 dark:border-neutral-700/50 dark:hover:bg-neutral-800/30 transition-colors">
                                     @php
                                         $canEditExpense = $expense->user_id === Auth::id() || $trip->user_id === Auth::id();
                                     @endphp
@@ -393,9 +479,9 @@
                                     </td>
                                     <td class="px-4 py-3">
                                         @if ($expense->description)
-                                            <flux:text class="text-sm text-neutral-400 line-clamp-1">{{ $expense->description }}</flux:text>
+                                            <flux:text class="text-sm line-clamp-1">{{ $expense->description }}</flux:text>
                                         @elseif ($canEditExpense)
-                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
                                                 {{ __('+ Add description') }}
                                             </button>
                                         @else
@@ -404,11 +490,11 @@
                                     </td>
                                     <td class="px-4 py-3">
                                         @if ($expense->link)
-                                            <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-400 hover:text-blue-300">
+                                            <flux:link :href="$expense->link" target="_blank" class="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
                                                 {{ __('Open') }}
                                             </flux:link>
                                         @elseif ($canEditExpense)
-                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-300">
+                                            <button type="button" wire:click="openEditExpenseModal({{ $expense->id }})" class="text-sm italic text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
                                                 {{ __('+ Add link') }}
                                             </button>
                                         @else
@@ -447,7 +533,7 @@
                                                     size="sm"
                                                     icon-only
                                                     wire:click="openEditExpenseModal({{ $expense->id }})"
-                                                    class="text-neutral-400 hover:text-white"
+                                                    class="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
                                                     title="{{ __('Edit') }}"
                                                 >
                                                     <flux:icon.pencil class="h-4 w-4" />
@@ -469,7 +555,7 @@
                             @endforeach
                         </tbody>
                         <tfoot>
-                            <tr class="border-t-2 border-neutral-700 bg-neutral-800/30">
+                            <tr class="border-t-2 border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800/30">
                                 <td class="px-4 py-3" colspan="4">
                                     <flux:text class="font-semibold">{{ __('Total') }}</flux:text>
                                 </td>
@@ -498,7 +584,7 @@
                             default => '#71717a',
                         };
                     @endphp
-                    <div class="mt-6 pt-6 border-t border-neutral-700/50">
+                    <div class="mt-6 pt-6 border-t border-neutral-200 dark:border-neutral-700/50">
                         <flux:subheading class="mb-3">{{ __('Cost Breakdown') }}</flux:subheading>
                         <div class="flex flex-col sm:flex-row items-center gap-6">
                             <div
@@ -606,7 +692,7 @@
             @if (count($this->settlementTransfers) > 0)
                 <div class="space-y-2">
                     @foreach ($this->settlementTransfers as $transfer)
-                        <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
+                        <div wire:key="transfer-{{ $transfer['from']->id }}-{{ $transfer['to']->id }}" class="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50">
                             <div class="flex items-center gap-2">
                                 <x-participant-avatar :name="$transfer['from']->fullName()" :initials="$transfer['from']->initials()" :color-slot="$trip->colorSlotFor($transfer['from'])" size="sm" />
                                 <flux:text class="text-sm">{{ $transfer['from']->fullName() }}</flux:text>
@@ -642,7 +728,7 @@
                 <flux:subheading class="mt-6 mb-3">{{ __('Recent Settlements') }}</flux:subheading>
                 <div class="space-y-2">
                     @foreach ($this->recentSettlements as $settlement)
-                        <div wire:key="settlement-{{ $settlement['id'] }}" class="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
+                        <div wire:key="settlement-{{ $settlement['id'] }}" class="flex flex-wrap items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700/50 opacity-80">
                             <flux:icon.check-circle class="h-4 w-4 text-green-500" />
                             <div class="flex items-center gap-2">
                                 <x-participant-avatar :name="$settlement['from']->fullName()" :initials="$settlement['from']->initials()" :color-slot="$trip->colorSlotFor($settlement['from'])" size="sm" />

@@ -5,6 +5,7 @@
 ])
 
 @php
+    use App\Support\TripPalette;
     use App\Support\WebMercator;
 
     // Only locations with coordinates can be plotted. A null check, not a
@@ -34,7 +35,8 @@
     $worldWidth = WebMercator::tileCount($zoom) * WebMercator::TILE_SIZE;
 
     // Each pin's pixel position within the widget, relative to the same
-    // top-left origin used for the tile grid.
+    // top-left origin used for the tile grid, plus which atlas color its
+    // trip owns.
     $pins = $points->map(function ($location) use ($zoom, $topLeftX, $topLeftY, $center, $worldWidth) {
         $world = WebMercator::toWorldPixel((float) $location->latitude, (float) $location->longitude, $zoom);
 
@@ -48,31 +50,83 @@
             'location' => $location,
             'left' => $x - $topLeftX,
             'top' => $world['y'] - $topLeftY,
+            'slot' => TripPalette::slotFor($location->trip_id),
         ];
     });
+
+    // Tailwind only keeps a --color-* custom property that it can see
+    // referenced literally somewhere in the scanned source — a dynamically
+    // built "--color-trip-{$slot}" string doesn't count, so it would get
+    // tree-shaken out of the compiled CSS. Spelling out all six here keeps
+    // it in view of the scanner.
+    $tripColorVar = fn (int $slot) => match ($slot) {
+        1 => 'var(--color-trip-1)',
+        2 => 'var(--color-trip-2)',
+        3 => 'var(--color-trip-3)',
+        4 => 'var(--color-trip-4)',
+        5 => 'var(--color-trip-5)',
+        6 => 'var(--color-trip-6)',
+    };
+
+    // One legend entry per trip represented on the map, so the same color
+    // that marks a trip's pins also names it — this is what turns a pile of
+    // pins into a readable, multi-trip atlas. Skipped entirely when only one
+    // trip is in play, since a one-entry legend has nothing to disambiguate.
+    $legend = $points
+        ->groupBy('trip_id')
+        ->map(fn ($group) => [
+            'trip' => $group->first()->trip,
+            'slot' => TripPalette::slotFor($group->first()->trip_id),
+            'count' => $group->count(),
+        ])
+        ->sortBy(fn ($entry) => $entry['trip']->name)
+        ->values();
 @endphp
 
 @if ($points->isNotEmpty())
-    <div
-        {{ $attributes->class(['relative overflow-hidden rounded-xl border border-neutral-700 bg-neutral-800']) }}
-        style="width: {{ $width }}px; height: {{ $height }}px;"
-    >
-        <x-osm-tile-grid :zoom="$zoom" :top-left-x="$topLeftX" :top-left-y="$topLeftY" :width="$width" :height="$height" />
+    <div class="flex flex-col gap-3">
+        @if ($legend->count() > 1)
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                @foreach ($legend as $entry)
+                    <a
+                        href="{{ route('trips.show', $entry['trip']) }}"
+                        wire:navigate
+                        wire:key="legend-{{ $entry['trip']->id }}"
+                        class="group flex items-center gap-1.5"
+                    >
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background-color: {{ $tripColorVar($entry['slot']) }};"></span>
+                        <flux:text variant="strong" class="group-hover:text-accent">{{ $entry['trip']->name }}</flux:text>
+                        <flux:text class="font-mono text-xs">{{ $entry['count'] }}</flux:text>
+                    </a>
+                @endforeach
+            </div>
+        @endif
 
-        @foreach ($pins as $pin)
-            @php $location = $pin['location']; @endphp
-            <a
-                href="{{ route('trips.show', $location->trip) }}"
-                wire:navigate
-                class="absolute"
-                style="left: {{ $pin['left'] - 12 }}px; top: {{ $pin['top'] - 24 }}px;"
-                title="{{ $location->name }} — {{ $location->trip->name }}"
-            >
-                <flux:icon.map-pin
-                    class="h-6 w-6 text-red-500 hover:text-red-400"
-                    style="filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6));"
-                />
-            </a>
-        @endforeach
+        <div
+            {{ $attributes->class(['map-frame rounded-xl border border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800']) }}
+            style="aspect-ratio: {{ $width }} / {{ $height }}; --map-frame-width: {{ $width }}px;"
+        >
+            <div class="map-frame-inner" style="width: {{ $width }}px; height: {{ $height }}px;">
+                <x-osm-tile-grid :zoom="$zoom" :top-left-x="$topLeftX" :top-left-y="$topLeftY" :width="$width" :height="$height" />
+
+                @foreach ($pins as $pin)
+                    @php $location = $pin['location']; @endphp
+                    <flux:tooltip :content="$location->name.' — '.$location->trip->name">
+                        <a
+                            href="{{ route('trips.show', $location->trip) }}"
+                            wire:navigate
+                            wire:key="pin-{{ $location->id }}"
+                            class="group absolute block -translate-x-1/2 -translate-y-1/2 rounded-full outline-none"
+                            style="left: {{ $pin['left'] }}px; top: {{ $pin['top'] }}px;"
+                        >
+                            <span
+                                class="block h-3.5 w-3.5 rounded-full border-2 border-neutral-900 shadow-[0_1px_2px_rgb(0_0_0/0.5)] transition-transform group-hover:scale-125 group-focus-visible:scale-125 group-focus-visible:ring-2 group-focus-visible:ring-white group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-neutral-900"
+                                style="background-color: {{ $tripColorVar($pin['slot']) }};"
+                            ></span>
+                        </a>
+                    </flux:tooltip>
+                @endforeach
+            </div>
+        </div>
     </div>
 @endif

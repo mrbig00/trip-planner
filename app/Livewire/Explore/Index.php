@@ -34,9 +34,12 @@ class Index extends Component
      */
     public function render(): View
     {
+        $locations = $this->locations();
+
         return view('livewire.explore.index', [
             'title' => __('Explore'),
-            'locations' => $this->locations(),
+            'locations' => $locations,
+            'tripCount' => $locations->pluck('trip_id')->unique()->count(),
         ]);
     }
 }
