@@ -30,6 +30,9 @@
                     <flux:sidebar.item icon="clock" :href="route('activity.index')" :current="request()->routeIs('activity.*')" wire:navigate>
                         {{ __('Activity') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="globe-alt" :href="route('explore.index')" :current="request()->routeIs('explore.*')" wire:navigate>
+                        {{ __('Explore') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 

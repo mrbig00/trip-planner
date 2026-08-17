@@ -47,6 +47,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Activity routes
     Volt::route('activity', 'activity.index')->name('activity.index');
+
+    // Explore routes
+    Volt::route('explore', 'explore.index')->name('explore.index');
 });
 
 require __DIR__.'/settings.php';

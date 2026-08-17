@@ -40,3 +40,63 @@ test('a known landmark projects inside the expected tile at a common zoom', func
         ->and($tileY)->toBe(11272)
         ->and($tileCount)->toBe(32768);
 });
+
+test('fitBounds picks a high zoom for two nearby points', function () {
+    // Eiffel Tower and Arc de Triomphe — a couple of km apart.
+    $fit = WebMercator::fitBounds(
+        [['lat' => 48.8584, 'lon' => 2.2945], ['lat' => 48.8738, 'lon' => 2.2950]],
+        900,
+        600,
+    );
+
+    expect($fit['zoom'])->toBeGreaterThan(10);
+});
+
+test('fitBounds always returns a center at the same scale as the returned zoom, even at the floor', function () {
+    // Two points on opposite sides of the globe, 170° of longitude apart the
+    // direct way (so cyclic wrapping around the antimeridian, which is 190°
+    // the other way, correctly does *not* kick in here): no zoom above the
+    // floor (2) can ever fit them in a 900x600 canvas, so the loop must run
+    // all the way down to zoom 2 — this is exactly the case that a
+    // stale-scale bug in the back-off loop would only surface under.
+    $points = [['lat' => 40.0, 'lon' => -74.0], ['lat' => -33.9, 'lon' => 96.0]];
+    $fit = WebMercator::fitBounds($points, 900, 600);
+
+    expect($fit['zoom'])->toBe(2);
+
+    // Recompute the bounding box independently, at the same zoom fitBounds()
+    // settled on, and confirm the returned center matches it exactly — this
+    // fails if center were ever built from a different zoom's projection.
+    $projected = array_map(fn ($p) => WebMercator::toWorldPixel($p['lat'], $p['lon'], $fit['zoom']), $points);
+    $minX = min(array_column($projected, 'x'));
+    $maxX = max(array_column($projected, 'x'));
+    $minY = min(array_column($projected, 'y'));
+    $maxY = max(array_column($projected, 'y'));
+
+    expect($fit['center']['x'])->toBe(($minX + $maxX) / 2)
+        ->and($fit['center']['y'])->toBe(($minY + $maxY) / 2);
+});
+
+test('fitBounds never returns a zoom below the floor of 2', function () {
+    $fit = WebMercator::fitBounds(
+        [['lat' => 89.0, 'lon' => -179.0], ['lat' => -89.0, 'lon' => 179.0]],
+        100,
+        100,
+    );
+
+    expect($fit['zoom'])->toBeGreaterThanOrEqual(2);
+});
+
+test('fitBounds treats points a few km apart across the antimeridian as nearby, not a world apart', function () {
+    // Longitude 179.9° and -179.9° are only ~0.2° apart going the "short way"
+    // around the antimeridian, but a naive min/max on their projected x pixel
+    // coordinates would see them as almost a full world apart (one near x=0,
+    // the other near x=worldWidth), forcing zoom all the way down to the floor.
+    $fit = WebMercator::fitBounds(
+        [['lat' => 0.0, 'lon' => 179.9], ['lat' => 0.0, 'lon' => -179.9]],
+        900,
+        600,
+    );
+
+    expect($fit['zoom'])->toBeGreaterThan(10);
+});
