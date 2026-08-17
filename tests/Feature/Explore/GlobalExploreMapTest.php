@@ -31,6 +31,20 @@ test('a single located location renders the map with a pin', function () {
         ->toContain('Eiffel Tower');
 });
 
+test('a location at latitude/longitude 0.0 still renders as a pin', function () {
+    // 0.0 is falsy in PHP — the map widget must use a null check, not a
+    // truthy check, to decide whether a location has coordinates.
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id]);
+    Location::factory()->create(['trip_id' => $trip->id, 'name' => 'Null Island', 'latitude' => 0.0, 'longitude' => 0.0]);
+    $this->actingAs($user);
+
+    $html = Volt::test('explore.index')->html();
+
+    expect($html)->toContain('tile.openstreetmap.org')
+        ->toContain('Null Island');
+});
+
 test('a location from a trip the user does not share does not appear as a pin', function () {
     $user = User::factory()->create();
     $ownTrip = Trip::factory()->create(['user_id' => $user->id]);

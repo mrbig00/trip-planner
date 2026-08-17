@@ -6,8 +6,8 @@ namespace App\Livewire\Explore;
 
 use Livewire\Component;
 use App\Models\Location;
-use Illuminate\View\View;
 use Illuminate\Support\Collection;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 
 class Index extends Component

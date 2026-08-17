@@ -31,14 +31,22 @@
     $topLeftX = $center['x'] - $width / 2;
     $topLeftY = $center['y'] - $height / 2;
 
+    $worldWidth = WebMercator::tileCount($zoom) * WebMercator::TILE_SIZE;
+
     // Each pin's pixel position within the widget, relative to the same
     // top-left origin used for the tile grid.
-    $pins = $points->map(function ($location) use ($zoom, $topLeftX, $topLeftY) {
+    $pins = $points->map(function ($location) use ($zoom, $topLeftX, $topLeftY, $center, $worldWidth) {
         $world = WebMercator::toWorldPixel((float) $location->latitude, (float) $location->longitude, $zoom);
+
+        // X wraps at the antimeridian, so a pin can project a whole world
+        // away from $center even when it's really right next door (e.g.
+        // longitude 179.9° vs -179.9°). Shift it by whichever multiple of
+        // $worldWidth lands it closest to $center before placing it.
+        $x = $world['x'] + round(($center['x'] - $world['x']) / $worldWidth) * $worldWidth;
 
         return [
             'location' => $location,
-            'left' => $world['x'] - $topLeftX,
+            'left' => $x - $topLeftX,
             'top' => $world['y'] - $topLeftY,
         ];
     });
@@ -47,7 +55,7 @@
 @if ($points->isNotEmpty())
     <div
         {{ $attributes->class(['relative overflow-hidden rounded-xl border border-neutral-700 bg-neutral-800']) }}
-        style="width: {{ $width }}px; height: {{ $height }}px; max-width: 100%;"
+        style="width: {{ $width }}px; height: {{ $height }}px;"
     >
         <x-osm-tile-grid :zoom="$zoom" :top-left-x="$topLeftX" :top-left-y="$topLeftY" :width="$width" :height="$height" />
 

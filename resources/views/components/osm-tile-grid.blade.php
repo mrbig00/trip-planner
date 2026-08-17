@@ -31,7 +31,7 @@
 
 <div class="absolute" style="left: {{ -$offsetX }}px; top: {{ -$offsetY }}px;">
     @for ($row = 0; $row < $tilesDown; $row++)
-        <div class="flex" style="height: {{ $tileSize }}px;">
+        <div class="flex" style="height: {{ $tileSize }}px;" wire:key="tile-row-{{ $zoom }}-{{ $row }}">
             @for ($col = 0; $col < $tilesAcross; $col++)
                 @php
                     // Wrap horizontally around the globe, clamp vertically at the poles.
@@ -47,6 +47,7 @@
                     alt=""
                     class="block"
                     onerror="this.style.visibility='hidden'"
+                    wire:key="tile-{{ $zoom }}-{{ $row }}-{{ $col }}"
                 >
             @endfor
         </div>
