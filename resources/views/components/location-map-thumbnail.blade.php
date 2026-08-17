@@ -37,8 +37,6 @@
     {{ $attributes->class(['map-frame block rounded-md border border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800']) }}
     style="aspect-ratio: {{ $width }} / {{ $height }}; max-width: {{ $width }}px; --map-frame-width: {{ $width }}px;"
 >
-    <div class="map-frame-inner" style="width: {{ $width }}px; height: {{ $height }}px;">
-        <x-osm-tile-grid :zoom="$zoom" :top-left-x="$topLeftX" :top-left-y="$topLeftY" :width="$width" :height="$height" />
-        <flux:icon.map-pin class="absolute h-6 w-6 text-red-500" style="left: calc(50% - 12px); top: calc(50% - 24px); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6));" />
-    </div>
+    <x-osm-tile-grid :zoom="$zoom" :top-left-x="$topLeftX" :top-left-y="$topLeftY" :width="$width" :height="$height" />
+    <flux:icon.map-pin class="absolute h-6 w-6 text-red-500" style="left: calc(50% - 12px); top: calc(50% - 24px); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.6));" />
 </a>
