@@ -58,7 +58,8 @@ test('expense creation accepts the creator as user_id', function () {
         ->set('quantity', 2)
         ->set('user_id', $owner->id)
         ->call('store')
-        ->assertRedirect(route('trips.show', $trip));
+        ->assertRedirect(route('trips.show', $trip))
+        ->assertDispatched('analytics-event', name: 'expense_created');
 
     expect(Expense::where('name', 'Dinner')->exists())->toBeTrue();
 });

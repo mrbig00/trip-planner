@@ -21,7 +21,9 @@ test('owner can delete a trip from the index', function () {
     $trip = Trip::factory()->create(['user_id' => $user->id]);
     $this->actingAs($user);
 
-    Volt::test('trips.index')->call('delete', $trip);
+    Volt::test('trips.index')
+        ->call('delete', $trip)
+        ->assertDispatched('analytics-event', name: 'trip_deleted');
 
     expect(Trip::find($trip->id))->toBeNull();
 });

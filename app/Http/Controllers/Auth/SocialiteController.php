@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Auth\Events\Registered;
+use Laravel\Socialite\Facades\Socialite;
 use App\Actions\Socialite\CreateOrLinkSocialUser;
 use App\Exceptions\SocialiteAuthenticationException;
-use App\Http\Controllers\Controller;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
-use Laravel\Socialite\Facades\Socialite;
 
 class SocialiteController extends Controller
 {
@@ -30,6 +31,14 @@ class SocialiteController extends Controller
             $user = $createOrLinkSocialUser->handle($provider, $socialiteUser);
         } catch (SocialiteAuthenticationException $exception) {
             return redirect()->route('login')->withErrors(['email' => $exception->getMessage()]);
+        }
+
+        // CreateOrLinkSocialUser creates new users directly (forceCreate),
+        // so this event doesn't fire on its own the way it does for a
+        // password registration — fire it here so a first-time Google
+        // sign-in is still tracked as a sign_up (see AppServiceProvider).
+        if ($user->wasRecentlyCreated) {
+            event(new Registered($user));
         }
 
         Auth::login($user, remember: true);

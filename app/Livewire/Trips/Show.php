@@ -20,9 +20,12 @@ use App\Actions\Trips\BuildActivityFeed;
 use App\Actions\Expenses\BuildExpenseShares;
 use App\Actions\Expenses\BuildBalanceSummary;
 use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Show extends Component
 {
+    use TracksAnalyticsEvents;
+
     public Trip $trip;
 
     public ?int $selectedLocationId = null;
@@ -82,6 +85,8 @@ class Show extends Component
 
         $this->trip->delete();
 
+        $this->trackEvent('trip_deleted', ['trip_id' => $this->trip->id]);
+
         $this->redirect(route('trips.index'), navigate: true);
     }
 
@@ -96,6 +101,8 @@ class Show extends Component
 
         $location->accept();
 
+        $this->trackEvent('location_accepted', ['trip_id' => $this->trip->id, 'location_id' => $location->id]);
+
         $this->trip->refresh();
     }
 
@@ -108,6 +115,8 @@ class Show extends Component
 
         $location = $this->trip->locations()->findOrFail($locationId);
         $location->delete();
+
+        $this->trackEvent('location_deleted', ['trip_id' => $this->trip->id, 'location_id' => $locationId]);
 
         $this->trip->refresh();
     }
@@ -203,6 +212,8 @@ class Show extends Component
 
         $this->trip->participants()->attach($userId, ['color_slot' => $slot]);
 
+        $this->trackEvent('trip_participant_added', ['trip_id' => $this->trip->id]);
+
         $this->participantSearch = '';
         $this->trip->refresh();
     }
@@ -215,6 +226,8 @@ class Show extends Component
         $this->ensureIsCreator();
 
         $this->trip->participants()->detach($userId);
+
+        $this->trackEvent('trip_participant_removed', ['trip_id' => $this->trip->id]);
 
         $this->trip->refresh();
     }
@@ -283,6 +296,8 @@ class Show extends Component
             'content' => $this->commentTexts[$locationId],
         ]);
 
+        $this->trackEvent('location_comment_added', ['trip_id' => $this->trip->id, 'location_id' => $locationId]);
+
         $this->commentTexts[$locationId] = '';
         $this->trip->refresh();
         $this->closeAddCommentModal();
@@ -341,6 +356,8 @@ class Show extends Component
 
         $expense->update(['deleted_by' => Auth::id()]);
         $expense->delete();
+
+        $this->trackEvent('expense_deleted', ['trip_id' => $this->trip->id, 'expense_id' => $expenseId]);
 
         $this->trip->refresh();
     }
@@ -460,6 +477,8 @@ class Show extends Component
             );
         });
 
+        $this->trackEvent('expense_updated', ['trip_id' => $this->trip->id, 'expense_id' => $expenseId]);
+
         $this->closeEditExpenseModal();
         $this->trip->refresh();
     }
@@ -570,6 +589,8 @@ class Show extends Component
                 'recorded_by_user_id' => Auth::id(),
             ]);
         });
+
+        $this->trackEvent('settlement_recorded', ['trip_id' => $this->trip->id, 'amount_cents' => $amountCents]);
 
         $this->trip->refresh();
     }

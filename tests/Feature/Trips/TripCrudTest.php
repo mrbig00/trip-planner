@@ -29,7 +29,8 @@ test('users can create a trip', function () {
         ->set('name', 'Summer Vacation')
         ->set('description', 'A fun summer trip')
         ->call('store')
-        ->assertRedirect(route('trips.show', Trip::where('name', 'Summer Vacation')->first()));
+        ->assertRedirect(route('trips.show', Trip::where('name', 'Summer Vacation')->first()))
+        ->assertDispatched('analytics-event', name: 'trip_created');
 
     expect(Trip::where('name', 'Summer Vacation')->exists())->toBeTrue();
 });
@@ -64,7 +65,8 @@ test('users can edit their own trips', function () {
         ->set('name', 'Updated Trip Name')
         ->set('description', 'Updated description')
         ->call('update')
-        ->assertRedirect(route('trips.show', $trip));
+        ->assertRedirect(route('trips.show', $trip))
+        ->assertDispatched('analytics-event', name: 'trip_updated');
 
     expect($trip->fresh()->name)->toBe('Updated Trip Name');
     expect($trip->fresh()->description)->toBe('Updated description');
@@ -87,7 +89,8 @@ test('users can delete their own trips', function () {
 
     Volt::test('trips.show', ['trip' => $trip])
         ->call('delete')
-        ->assertRedirect(route('trips.index'));
+        ->assertRedirect(route('trips.index'))
+        ->assertDispatched('analytics-event', name: 'trip_deleted');
 
     expect(Trip::find($trip->id))->toBeNull();
 });

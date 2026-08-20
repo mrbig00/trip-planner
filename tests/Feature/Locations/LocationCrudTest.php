@@ -85,7 +85,8 @@ test('owner can create a location with all fields', function () {
         ->set('link', 'https://example.com')
         ->set('picture', 'https://example.com/paris.jpg')
         ->call('store')
-        ->assertRedirect(route('trips.show', $trip));
+        ->assertRedirect(route('trips.show', $trip))
+        ->assertDispatched('analytics-event', name: 'location_created');
 
     $location = Location::where('name', 'Paris')->first();
     expect($location)->not->toBeNull();
@@ -182,7 +183,8 @@ test('owner can update a location', function () {
     Volt::test('locations.edit', ['trip' => $trip, 'location' => $location])
         ->set('name', 'New Name')
         ->call('update')
-        ->assertRedirect(route('trips.show', $trip));
+        ->assertRedirect(route('trips.show', $trip))
+        ->assertDispatched('analytics-event', name: 'location_updated');
 
     expect($location->fresh()->name)->toBe('New Name');
 });

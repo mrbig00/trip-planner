@@ -225,6 +225,10 @@ spec:
             - name: GOOGLE_REDIRECT_URI
               value: "https://trip-planner.szanto-zoltan.com/auth/google/callback"
 
+            # Analytics
+            - name: GOOGLE_ANALYTICS_ID
+              value: "G-R4ZFQ2X6RM"
+
             # Cache & Session
             - name: CACHE_STORE
               value: redis

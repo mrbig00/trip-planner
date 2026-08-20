@@ -8,9 +8,12 @@ use App\Models\Trip;
 use Livewire\Component;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Edit extends Component
 {
+    use TracksAnalyticsEvents;
+
     public Trip $trip;
 
     public string $name = '';
@@ -58,6 +61,8 @@ class Edit extends Component
         ]);
 
         $this->trip->update($validated);
+
+        $this->trackEvent('trip_updated', ['trip_id' => $this->trip->id]);
 
         $this->redirect(route('trips.show', $this->trip), navigate: true);
     }

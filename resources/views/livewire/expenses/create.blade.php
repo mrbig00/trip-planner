@@ -9,11 +9,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
 new class extends Component {
+    use TracksAnalyticsEvents;
+
     public Trip $trip;
 
     public string $name = '';
@@ -109,6 +112,8 @@ new class extends Component {
                 )
             );
         });
+
+        $this->trackEvent('expense_created', ['trip_id' => $this->trip->id, 'amount_cents' => $totalCents]);
 
         $this->redirect(route('trips.show', $this->trip), navigate: true);
     }
