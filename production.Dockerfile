@@ -10,10 +10,12 @@ ENV APP_COMMIT=${APP_COMMIT}
 USER root
 
 # Install PHP extensions required by Laravel (PostgreSQL, zip, bcmath)
+# and the OpenTelemetry extension used for zero-code auto-instrumentation
 RUN install-php-extensions \
     pdo_pgsql \
     zip \
-    bcmath
+    bcmath \
+    opentelemetry
 
 # Install Node.js for frontend build (LTS 20.x)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \

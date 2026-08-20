@@ -58,3 +58,9 @@ sail down && sail up -d
 
 - **laravel.test** — the app container (PHP 8.5 runtime)
 - **pgsql** — PostgreSQL 18
+
+## Observability
+
+Production exports traces via OpenTelemetry zero-code auto-instrumentation.
+See [`docs/observability.md`](docs/observability.md) for the env vars, how to
+view traces in Grafana/Tempo, and how to disable it.
