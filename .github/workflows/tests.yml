@@ -25,6 +25,7 @@ jobs:
           php-version: 8.4
           tools: composer:v2
           coverage: xdebug
+          extensions: opentelemetry
 
       - name: Setup Node
         uses: actions/setup-node@v4
