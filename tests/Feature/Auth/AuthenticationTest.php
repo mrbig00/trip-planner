@@ -24,6 +24,32 @@ test('users can authenticate using the login screen', function () {
     $this->assertAuthenticated();
 });
 
+test('logging in queues a login analytics event when analytics is configured', function () {
+    config(['services.google_analytics.id' => 'G-TEST123']);
+    $user = User::factory()->create();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    expect(App\Support\Analytics::pullQueued())->toBe([
+        ['event' => 'login', 'params' => ['method' => 'password']],
+    ]);
+});
+
+test('logging in queues no analytics event when analytics is not configured', function () {
+    config(['services.google_analytics.id' => null]);
+    $user = User::factory()->create();
+
+    $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    expect(App\Support\Analytics::pullQueued())->toBe([]);
+});
+
 test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 

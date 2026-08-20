@@ -58,6 +58,43 @@ test('callback splits a single-word name and falls back to email when no name is
         ->and($user->last_name)->toBe('');
 });
 
+test('callback queues sign_up and login analytics events for a brand-new google user', function () {
+    config(['services.google_analytics.id' => 'G-TEST123']);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'provider-id-analytics',
+        'name' => 'Jane Doe',
+        'email' => 'jane-analytics@example.com',
+        'email_verified' => true,
+    ]));
+
+    $this->get(route('socialite.callback', 'google'));
+
+    expect(App\Support\Analytics::pullQueued())->toBe([
+        ['event' => 'sign_up', 'params' => ['method' => 'google']],
+        ['event' => 'login', 'params' => ['method' => 'google']],
+    ]);
+});
+
+test('callback queues only a login analytics event for an already-linked google user', function () {
+    config(['services.google_analytics.id' => 'G-TEST123']);
+
+    $existing = User::factory()->create(['email' => 'jane@example.com']);
+    $existing->providers()->create(['provider' => 'google', 'provider_id' => 'provider-id-existing']);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'provider-id-existing',
+        'name' => 'Jane Doe',
+        'email' => 'jane@example.com',
+    ]));
+
+    $this->get(route('socialite.callback', 'google'));
+
+    expect(App\Support\Analytics::pullQueued())->toBe([
+        ['event' => 'login', 'params' => ['method' => 'google']],
+    ]);
+});
+
 test('callback links an existing user found by email and logs them in', function () {
     $existing = User::factory()->unverified()->create(['email' => 'jane@example.com']);
 

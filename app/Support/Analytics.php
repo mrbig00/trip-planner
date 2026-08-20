@@ -23,6 +23,10 @@ class Analytics
      */
     public static function queue(string $event, array $params = []): void
     {
+        if (blank(config('services.google_analytics.id'))) {
+            return;
+        }
+
         session()->push(self::SESSION_KEY, [
             'event' => $event,
             'params' => $params,

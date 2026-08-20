@@ -39,7 +39,7 @@
     <section class="py-5">
         <div class="container" style="max-width: 42rem;">
             <h1 class="h2 fw-bold mb-2">Privacy Policy</h1>
-            <p class="text-secondary mb-5">Last updated: August 21, 2026</p>
+            <p class="text-secondary mb-5">Last updated: August 20, 2026</p>
 
             <div class="d-flex flex-column gap-4">
                 <div>

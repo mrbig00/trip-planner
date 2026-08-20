@@ -34,7 +34,8 @@ test('the trip creator can mark a suggested transfer as settled', function () {
     Volt::test('trips.show', ['trip' => $trip])
         ->call('markTransferSettled', $participant->id, $owner->id, 2000)
         ->assertSee('Everyone is settled up!')
-        ->assertSee('Settled');
+        ->assertSee('Settled')
+        ->assertDispatched('analytics-event', name: 'settlement_recorded');
 
     expect(Settlement::query()->count())->toBe(1);
     $settlement = Settlement::first();

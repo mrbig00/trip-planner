@@ -15,7 +15,8 @@ test('trip creator can accept a location', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('acceptLocation', $location->id);
+        ->call('acceptLocation', $location->id)
+        ->assertDispatched('analytics-event', name: 'location_accepted');
 
     expect($location->fresh()->accepted)->toBeTrue();
 });
@@ -90,6 +91,19 @@ test('non-owner cannot delete a location', function () {
         ->assertForbidden();
 
     expect(Location::find($location->id))->not->toBeNull();
+});
+
+test('trip creator can delete a location', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $location = Location::factory()->create(['trip_id' => $trip->id]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('deleteLocation', $location->id)
+        ->assertDispatched('analytics-event', name: 'location_deleted');
+
+    expect(Location::find($location->id))->toBeNull();
 });
 
 test('trip creator can toggle a vote', function () {
@@ -255,7 +269,8 @@ test('owner can add a new participant', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('addParticipant', $newUser->id);
+        ->call('addParticipant', $newUser->id)
+        ->assertDispatched('analytics-event', name: 'trip_participant_added');
 
     expect($trip->fresh()->participants->pluck('id'))->toContain($newUser->id);
 });
@@ -328,7 +343,8 @@ test('owner can remove a participant', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('removeParticipant', $participant->id);
+        ->call('removeParticipant', $participant->id)
+        ->assertDispatched('analytics-event', name: 'trip_participant_removed');
 
     expect($trip->fresh()->participants->pluck('id'))->not->toContain($participant->id);
 });
@@ -420,7 +436,8 @@ test('addComment creates a comment, clears the input, and closes the modal', fun
         ->set("commentTexts.{$location->id}", 'Great spot!')
         ->call('addComment')
         ->assertSet("commentTexts.{$location->id}", '')
-        ->assertSet('showAddCommentModal', false);
+        ->assertSet('showAddCommentModal', false)
+        ->assertDispatched('analytics-event', name: 'location_comment_added');
 
     expect(LocationComment::where('location_id', $location->id)->where('content', 'Great spot!')->exists())->toBeTrue();
 });
@@ -488,7 +505,8 @@ test('expense owner can delete their expense', function () {
     $this->actingAs($owner);
 
     Volt::test('trips.show', ['trip' => $trip])
-        ->call('deleteExpense', $expense->id);
+        ->call('deleteExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_deleted');
 
     expect(Expense::find($expense->id))->toBeNull();
 });
@@ -569,7 +587,8 @@ test('owner can save an edited expense', function () {
         ->set('editingExpense.name', 'New Name')
         ->call('saveExpense', $expense->id)
         ->assertSet('showEditExpenseModal', false)
-        ->assertSet('editingExpenseId', null);
+        ->assertSet('editingExpenseId', null)
+        ->assertDispatched('analytics-event', name: 'expense_updated');
 
     expect($expense->fresh()->name)->toBe('New Name');
 });

@@ -11,11 +11,12 @@
  * (see resources/views/partials/google-analytics.blade.php) since this is
  * a plain bundled module with no access to Laravel's config().
  *
- * Everything else — page views on Livewire's wire:navigate transitions,
- * and custom events dispatched from Livewire/Volt components via the
- * TracksAnalyticsEvents trait — is unchanged by consent status: it's
- * always safe to call trackEvent(), it just won't reach Google until (and
- * unless) consent has been granted.
+ * It's always safe to call trackEvent() regardless of consent status — page
+ * views on Livewire's wire:navigate transitions, and custom events
+ * dispatched from Livewire/Volt components via the TracksAnalyticsEvents
+ * trait, both go through it. Anything that fires before consent is granted
+ * is dropped, not queued: an action taken before the visitor accepted must
+ * never reach Google, even after they do accept.
  */
 
 const CONSENT_STORAGE_KEY = 'ga-consent';
@@ -23,13 +24,6 @@ const CONSENT_STORAGE_KEY = 'ga-consent';
 /** @type {'pending' | 'granted' | 'denied'} */
 let consentStatus = 'pending';
 let gaLoaded = false;
-
-// Events fired before consent is granted aren't dropped outright — they're
-// held here and flushed the moment gtag.js finishes loading, so an event
-// tied to the very page that triggered the "Accept" click (or a queued
-// login/sign_up event sitting on the page underneath the banner) doesn't
-// silently vanish while the visitor is still deciding.
-const pendingEvents = [];
 
 function readMeasurementId() {
     return document.querySelector('meta[name="ga-measurement-id"]')?.content || null;
@@ -59,15 +53,15 @@ function writeStoredConsent(status) {
 }
 
 export function trackEvent(name, params = {}) {
-    if (consentStatus === 'denied') {
+    // Nothing is buffered for later: an event that happens before consent is
+    // granted must never reach Google, including once consent does arrive —
+    // so anything that fires while the banner is still pending is dropped,
+    // not queued.
+    if (consentStatus !== 'granted') {
         return;
     }
 
-    if (gaLoaded) {
-        window.gtag('event', name, params);
-    } else {
-        pendingEvents.push([name, params]);
-    }
+    window.gtag('event', name, params);
 }
 
 function trackPageView() {
@@ -91,9 +85,9 @@ function loadGoogleAnalytics(measurementId) {
     };
     window.gtag('js', new Date());
     // Page views are sent manually (trackPageView, below) rather than
-    // automatically, so the very first one only fires once gtag.js is
-    // actually loaded — which may be well after the real page load, if
-    // consent takes a while to arrive.
+    // automatically, so the one for the current page only fires once
+    // consent is granted and gtag.js loads — which may be a while after the
+    // real page load, if the visitor takes time to decide.
     window.gtag('config', measurementId, { send_page_view: false });
 
     const script = document.createElement('script');
@@ -102,10 +96,26 @@ function loadGoogleAnalytics(measurementId) {
     document.head.appendChild(script);
 
     trackPageView();
+}
 
-    while (pendingEvents.length) {
-        const [name, params] = pendingEvents.shift();
-        window.gtag('event', name, params);
+/**
+ * Undo loadGoogleAnalytics() when consent is withdrawn after having been
+ * granted: tell gtag.js to stop collecting (Google's Consent Mode signal —
+ * the library is already loaded and would otherwise keep measuring
+ * engagement on its own even without our trackEvent calls), and delete the
+ * cookies it already set so nothing lingers in the browser.
+ */
+function revokeGoogleAnalytics(measurementId) {
+    if (typeof window.gtag === 'function') {
+        window.gtag('consent', 'update', { analytics_storage: 'denied' });
+    }
+
+    const idSuffix = measurementId.replace(/^G-/, '');
+    const domain = window.location.hostname;
+
+    for (const name of ['_ga', `_ga_${idSuffix}`]) {
+        document.cookie = `${name}=; Max-Age=0; path=/`;
+        document.cookie = `${name}=; Max-Age=0; path=/; domain=${domain}`;
     }
 }
 
@@ -263,7 +273,7 @@ function decide(status, measurementId) {
     if (status === 'granted') {
         loadGoogleAnalytics(measurementId);
     } else {
-        pendingEvents.length = 0;
+        revokeGoogleAnalytics(measurementId);
     }
 }
 
@@ -351,6 +361,9 @@ function initConsent() {
         consentStatus = 'denied';
         injectStyles();
         showReopenButton();
+        // Defense in depth: clean up any GA cookie that might still be
+        // sitting in the browser from before this consent gate existed.
+        revokeGoogleAnalytics(measurementId);
     } else {
         showConsentBanner(measurementId);
     }
