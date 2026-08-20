@@ -145,6 +145,20 @@ spec:
             requests:
               memory: "128Mi"
               cpu: "100m"
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.62.0@sha256:c5a968ba5f30bab5e12181cceb89c4ed37cb4fe4d85490b5b66c7cfe4750b5e8
+          args:
+            - --redis.addr=redis://localhost:6379
+          ports:
+            - containerPort: 9121
+              name: metrics
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "32Mi"
+              cpu: "50m"
         - name: laravel
           imagePullPolicy: Always
           image: ghcr.io/mrbig00/trip-planner:latest
