@@ -61,6 +61,6 @@ sail down && sail up -d
 
 ## Observability
 
-Production exports traces and metrics via OpenTelemetry zero-code
-auto-instrumentation. See [`docs/observability.md`](docs/observability.md) for the
-env vars, how to view traces in Grafana/Tempo, and how to disable it.
+Production exports traces via OpenTelemetry zero-code auto-instrumentation.
+See [`docs/observability.md`](docs/observability.md) for the env vars, how to
+view traces in Grafana/Tempo, and how to disable it.

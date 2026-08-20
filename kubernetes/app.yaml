@@ -236,8 +236,6 @@ spec:
               value: trip-planner
             - name: OTEL_TRACES_EXPORTER
               value: otlp
-            - name: OTEL_METRICS_EXPORTER
-              value: otlp
             - name: OTEL_LOGS_EXPORTER
               value: none
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -247,7 +245,7 @@ spec:
             - name: OTEL_PROPAGATORS
               value: baggage,tracecontext
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: deployment.environment=production
+              value: deployment.environment.name=production
             - name: OTEL_TRACES_SAMPLER
               value: parentbased_always_on
           livenessProbe:

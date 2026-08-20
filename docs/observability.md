@@ -25,12 +25,11 @@ automatically.
 | `OTEL_PHP_AUTOLOAD_ENABLED` | `true` | Turns auto-instrumentation on. **This is the escape hatch** — see below. |
 | `OTEL_SERVICE_NAME` | `trip-planner` | `service.name` resource attribute; how the app shows up in Grafana/Tempo. |
 | `OTEL_TRACES_EXPORTER` | `otlp` | Export traces via OTLP. |
-| `OTEL_METRICS_EXPORTER` | `otlp` | Export metrics via OTLP. |
 | `OTEL_LOGS_EXPORTER` | `none` | Logs already reach Loki via stdout → kubelet → Alloy's `loki.source.kubernetes` pipeline; the OTel logs exporter is disabled to avoid double-shipping. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://alloy.observability.svc.cluster.local:4318` | In-cluster Alloy collector, OTLP/HTTP. |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | Matches the collector's HTTP/protobuf listener. |
 | `OTEL_PROPAGATORS` | `baggage,tracecontext` | W3C Trace Context + Baggage propagation. |
-| `OTEL_RESOURCE_ATTRIBUTES` | `deployment.environment=production` | Tags every span/metric with its environment. |
+| `OTEL_RESOURCE_ATTRIBUTES` | `deployment.environment.name=production` | Tags every span with its environment. |
 | `OTEL_TRACES_SAMPLER` | `parentbased_always_on` | Sample everything, honoring any upstream sampling decision. |
 
 ## Viewing traces
@@ -39,8 +38,10 @@ Traces land in **Tempo** and are viewable through **Grafana**:
 <https://grafana.k3s.szanto-zoltan.com>
 
 Search Tempo for `service.name="trip-planner"` after a few requests hit
-<https://trip-planner.szanto-zoltan.com>. HTTP requests, DB queries, queue jobs,
-and cache operations should show up as spans without any application code changes.
+<https://trip-planner.szanto-zoltan.com>. HTTP requests, DB queries, and queue
+jobs show up as their own spans; cache operations are recorded as events on
+whichever span is active when they happen, rather than as standalone spans —
+all without any application code changes.
 
 ## Disabling it (escape hatch)
 
@@ -57,7 +58,14 @@ with autoloading disabled — they're inert until `OTEL_PHP_AUTOLOAD_ENABLED=tru
 
 ## Local development
 
-Local dev (`php artisan serve`, Sail, etc.) is unaffected: `.env.example` ships the
-`OTEL_*` vars commented out, so nothing changes unless a developer opts in by
-uncommenting them (and installing the `opentelemetry` PECL/PECL-equivalent
-extension locally, e.g. `pecl install opentelemetry`).
+Local dev (`php artisan serve`, Sail, etc.) is unaffected by default. `.env.example`
+lists the `OTEL_*` vars for reference, but uncommenting them there does **not**
+enable instrumentation: the extension's autoloader hooks in from
+`vendor/autoload.php`, which runs before Laravel boots and loads `.env`, so the
+SDK never sees values set only in that file. To opt in locally, install the
+`opentelemetry` PECL extension (e.g. `pecl install opentelemetry`) and export the
+vars as real process/shell env vars instead, e.g.:
+
+```sh
+OTEL_PHP_AUTOLOAD_ENABLED=true OTEL_SERVICE_NAME=trip-planner php artisan serve
+```
