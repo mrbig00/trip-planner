@@ -9,9 +9,12 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Component;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Index extends Component
 {
+    use TracksAnalyticsEvents;
+
     public string $search = '';
 
     /**
@@ -39,6 +42,8 @@ class Index extends Component
         }
 
         $trip->delete();
+
+        $this->trackEvent('trip_deleted', ['trip_id' => $trip->id]);
     }
 
     /**

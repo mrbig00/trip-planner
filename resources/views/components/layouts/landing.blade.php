@@ -41,6 +41,9 @@
             .bd-masthead { padding: 4rem 0; }
         }
     </style>
+
+    @include('partials.google-analytics')
+    @vite('resources/js/analytics.js')
 </head>
 <body class="bg-dark text-light">
     @yield('content')

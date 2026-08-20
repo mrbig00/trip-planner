@@ -126,7 +126,10 @@
         <div class="container">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <span class="fw-semibold">{{ config('app.name') }}</span>
-                <span class="small text-secondary">&copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.</span>
+                <div class="d-flex align-items-center gap-3">
+                    <a href="{{ route('privacy') }}" class="small link-light text-decoration-none">Privacy Policy</a>
+                    <span class="small text-secondary">&copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.</span>
+                </div>
             </div>
         </div>
     </footer>

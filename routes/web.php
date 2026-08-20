@@ -9,6 +9,10 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+Route::get('privacy', function () {
+    return view('privacy');
+})->name('privacy');
+
 Route::get('dashboard', Dashboard::class)
     ->middleware(['auth', 'verified'])
     ->name('dashboard');

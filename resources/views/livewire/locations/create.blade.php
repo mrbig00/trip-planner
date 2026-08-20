@@ -4,11 +4,14 @@ use App\Models\Location;
 use App\Models\Trip;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
 new class extends Component {
+    use TracksAnalyticsEvents;
+
     public Trip $trip;
 
     public string $name = '';
@@ -49,7 +52,9 @@ new class extends Component {
             'picture' => ['nullable', 'url', 'max:255'],
         ]);
 
-        $this->trip->locations()->create($validated);
+        $location = $this->trip->locations()->create($validated);
+
+        $this->trackEvent('location_created', ['trip_id' => $this->trip->id, 'location_id' => $location->id]);
 
         $this->redirect(route('trips.show', $this->trip), navigate: true);
     }

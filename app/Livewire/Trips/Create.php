@@ -8,9 +8,12 @@ use App\Models\Trip;
 use Livewire\Component;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Create extends Component
 {
+    use TracksAnalyticsEvents;
+
     public string $name = '';
 
     public string $description = '';
@@ -42,6 +45,8 @@ class Create extends Component
             ...$validated,
             'user_id' => Auth::id(),
         ]);
+
+        $this->trackEvent('trip_created', ['trip_id' => $trip->id]);
 
         $this->redirect(route('trips.show', $trip), navigate: true);
     }

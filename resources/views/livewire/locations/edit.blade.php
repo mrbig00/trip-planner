@@ -4,11 +4,14 @@ use App\Models\Location;
 use App\Models\Trip;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Volt\Component;
+use App\Livewire\Concerns\TracksAnalyticsEvents;
 use function Livewire\Volt\layout;
 
 layout('components.layouts.app');
 
 new class extends Component {
+    use TracksAnalyticsEvents;
+
     public Trip $trip;
     public Location $location;
 
@@ -62,6 +65,8 @@ new class extends Component {
         ]);
 
         $this->location->update($validated);
+
+        $this->trackEvent('location_updated', ['trip_id' => $this->trip->id, 'location_id' => $this->location->id]);
 
         $this->redirect(route('trips.show', $this->trip), navigate: true);
     }
