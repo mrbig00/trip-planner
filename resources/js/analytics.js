@@ -122,7 +122,7 @@ document.addEventListener('livewire:navigated', () => {
 });
 
 document.addEventListener('livewire:init', () => {
-    Livewire.on('analytics-event', ({ event, params }) => trackEvent(event, params));
+    Livewire.on('analytics-event', ({ name, params }) => trackEvent(name, params));
 });
 
 // Exposed so the queued-events flush in the google-analytics partial (for

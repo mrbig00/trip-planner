@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Livewire\Trips;
 
 use App\Models\Trip;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
 use Livewire\Component;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Collection;
 use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Index extends Component

@@ -16,6 +16,8 @@ trait TracksAnalyticsEvents
 {
     protected function trackEvent(string $event, array $params = []): void
     {
-        $this->dispatch('analytics-event', event: $event, params: $params);
+        // dispatch()'s own first parameter is named $event, so the payload
+        // key can't be `event` too — named arguments would collide with it.
+        $this->dispatch('analytics-event', name: $event, params: $params);
     }
 }

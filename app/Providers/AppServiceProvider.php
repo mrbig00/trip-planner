@@ -4,8 +4,8 @@ namespace App\Providers;
 
 use App\Support\Analytics;
 use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
