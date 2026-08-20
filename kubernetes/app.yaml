@@ -228,6 +228,28 @@ spec:
             # Broadcasting & Queue
             - name: BROADCAST_CONNECTION
               value: log
+
+            # OpenTelemetry (zero-code auto-instrumentation -> Alloy -> Tempo/Grafana)
+            - name: OTEL_PHP_AUTOLOAD_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: trip-planner
+            - name: OTEL_TRACES_EXPORTER
+              value: otlp
+            - name: OTEL_METRICS_EXPORTER
+              value: otlp
+            - name: OTEL_LOGS_EXPORTER
+              value: none
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://alloy.observability.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_PROPAGATORS
+              value: baggage,tracecontext
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: deployment.environment=production
+            - name: OTEL_TRACES_SAMPLER
+              value: parentbased_always_on
           livenessProbe:
             httpGet:
               path: /up
