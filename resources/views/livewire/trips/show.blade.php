@@ -576,6 +576,94 @@
         </div>
     </div>
 
+    @php
+        // Trip pages aren't currently scoped by membership at the route
+        // level (unlike Trips\Index, Budgets, etc. — see BuildActivityFeed's
+        // ->visibleTo() usage there), so an unrelated authenticated user can
+        // open any trip's URL. Documents can carry sensitive attachments, so
+        // — independent of the server-side checks on every document
+        // action — the section itself is only rendered for actual members.
+        // $this->isTripMember (not a raw expression here) so this stays the
+        // same single source of truth the component's own authorization
+        // checks use — see Show::getIsTripMemberProperty().
+    @endphp
+    @if ($this->isTripMember)
+    <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
+            <div class="flex items-center gap-2">
+                <flux:badge>{{ $trip->documents->count() }}</flux:badge>
+                <flux:button variant="ghost" size="sm" wire:click="openAddDocumentModal">
+                    {{ __('Add Document') }}
+                </flux:button>
+            </div>
+        </div>
+        @if ($trip->documents->count() > 0)
+            <div class="space-y-3">
+                @foreach ($trip->documents as $document)
+                    <div wire:key="document-{{ $document->id }}" class="flex items-start gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-700/50">
+                            <flux:icon :icon="$document->icon()" class="h-4 w-4 text-neutral-400" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <flux:text class="font-medium truncate">{{ $document->title }}</flux:text>
+                            @if ($document->description)
+                                <flux:text class="text-sm mt-1 text-neutral-400">{{ $document->description }}</flux:text>
+                            @endif
+                            <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <flux:text class="text-xs text-neutral-500">{{ $document->humanSize() }}</flux:text>
+                                <flux:text class="text-xs text-neutral-500">&middot;</flux:text>
+                                <flux:text class="text-xs text-neutral-500">
+                                    {{ __('Uploaded by') }} {{ $document->uploader->fullName() }}
+                                </flux:text>
+                                <flux:text class="text-xs text-neutral-500">&middot;</flux:text>
+                                <flux:text class="text-xs text-neutral-500">{{ $document->created_at->diffForHumans() }}</flux:text>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            <flux:button
+                                variant="ghost"
+                                size="sm"
+                                icon-only
+                                title="{{ __('Download') }}"
+                                wire:click="downloadDocument({{ $document->id }})"
+                            >
+                                <flux:icon.arrow-down-tray class="h-4 w-4" />
+                            </flux:button>
+                            @if ($this->canManageDocument($document))
+                                <flux:button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon-only
+                                    title="{{ __('Edit') }}"
+                                    wire:click="openEditDocumentModal({{ $document->id }})"
+                                >
+                                    <flux:icon.pencil class="h-4 w-4" />
+                                </flux:button>
+                                <flux:button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon-only
+                                    class="text-red-400/70 hover:text-red-400"
+                                    title="{{ __('Delete') }}"
+                                    x-on:click="confirmDestroy('{{ __('Delete document?') }}', '{{ __('Are you sure you want to delete this document? This action cannot be undone.') }}', () => $wire.deleteDocument({{ $document->id }}))"
+                                >
+                                    <flux:icon.trash class="h-4 w-4" />
+                                </flux:button>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <flux:callout variant="subtle">
+                <flux:text>{{ __('No documents yet.') }}</flux:text>
+                <flux:text class="mt-2">{{ __('Click "Add Document" to attach tickets, reservations, or other files to this trip.') }}</flux:text>
+            </flux:callout>
+        @endif
+    </div>
+    @endif
+
     <div class="rounded-xl border border-neutral-200 dark:border-neutral-700/50 p-6">
         <div class="flex items-center justify-between mb-4">
             <flux:heading size="lg">{{ __('Settle Up') }}</flux:heading>
@@ -1027,5 +1115,92 @@
         </div>
     </flux:modal>
 
-    <x-confirm-modal wire-target="delete,deleteLocation,deleteComment,deleteExpense,removeParticipant,markTransferSettled" />
+    <flux:modal
+        name="add-document-modal"
+        :show="$showAddDocumentModal"
+        wire:model="showAddDocumentModal"
+        focusable
+        class="max-w-lg"
+    >
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Add Document') }}</flux:heading>
+                <flux:subheading class="mt-1">
+                    {{ __('Attach a ticket, reservation, or other file to this trip.') }}
+                </flux:subheading>
+            </div>
+
+            <flux:field>
+                <flux:input wire:model="newDocumentTitle" :label="__('Title')" autofocus />
+            </flux:field>
+
+            <flux:field>
+                <flux:textarea wire:model="newDocumentDescription" :label="__('Description')" rows="3" />
+            </flux:field>
+
+            <flux:field>
+                <flux:input type="file" wire:model="newDocument" :label="__('File')" />
+                <div wire:loading wire:target="newDocument">
+                    <flux:text class="text-sm text-neutral-400 mt-1">{{ __('Uploading...') }}</flux:text>
+                </div>
+            </flux:field>
+
+            <div class="flex justify-end gap-2">
+                <flux:button
+                    variant="ghost"
+                    wire:click="closeAddDocumentModal"
+                >
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button
+                    variant="primary"
+                    wire:click="addDocument"
+                    wire:loading.attr="disabled"
+                    wire:target="addDocument,newDocument"
+                >
+                    <span wire:loading.remove wire:target="addDocument">{{ __('Add Document') }}</span>
+                    <span wire:loading wire:target="addDocument">{{ __('Saving...') }}</span>
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal
+        name="edit-document-modal"
+        :show="$showEditDocumentModal"
+        wire:model="showEditDocumentModal"
+        focusable
+        class="max-w-lg"
+    >
+        <div class="space-y-6">
+            <flux:heading size="lg">{{ __('Edit Document') }}</flux:heading>
+
+            <flux:field>
+                <flux:input wire:model="editingDocument.title" :label="__('Title')" autofocus />
+            </flux:field>
+
+            <flux:field>
+                <flux:textarea wire:model="editingDocument.description" :label="__('Description')" rows="3" />
+            </flux:field>
+
+            <div class="flex justify-end gap-2">
+                <flux:button
+                    variant="ghost"
+                    wire:click="closeEditDocumentModal"
+                >
+                    {{ __('Cancel') }}
+                </flux:button>
+                <flux:button
+                    variant="primary"
+                    wire:click="updateDocument({{ $editingDocumentId }})"
+                    wire:loading.attr="disabled"
+                    wire:target="updateDocument"
+                >
+                    {{ __('Save') }}
+                </flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <x-confirm-modal wire-target="delete,deleteLocation,deleteComment,deleteExpense,removeParticipant,markTransferSettled,deleteDocument" />
 </div>

@@ -47,6 +47,18 @@ return [
             'report' => false,
         ],
 
+        // Trip documents (tickets, reservations, etc.). Private and served
+        // only through the authenticated download action in
+        // App\Livewire\Trips\Show — never linked to directly. See
+        // config/documents.php.
+        'documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/documents'),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

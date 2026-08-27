@@ -11,6 +11,16 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo pdo_pgsql zip bcmath \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Raise PHP's upload limits above the app's own document cap
+# (config('documents.max_upload_kb')) — the stock image defaults to 2M/8M.
+# Keep the 12M here equal to config('documents.infra_max_upload_kb') —
+# Show::addDocument() checks the two against each other at upload time and
+# throws if they've drifted, so update both together.
+RUN { \
+    echo 'upload_max_filesize = 12M'; \
+    echo 'post_max_size = 12M'; \
+    } > /usr/local/etc/php/conf.d/uploads.ini
+
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

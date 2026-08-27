@@ -10,12 +10,15 @@ use App\Support\Money;
 use Livewire\Component;
 use Illuminate\View\View;
 use App\Models\Settlement;
+use App\Models\TripDocument;
+use Livewire\WithFileUploads;
 use App\Enums\ExpenseSplitType;
 use App\Models\LocationComment;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use App\Actions\Trips\BuildActivityFeed;
 use App\Actions\Expenses\BuildExpenseShares;
 use App\Actions\Expenses\BuildBalanceSummary;
@@ -24,7 +27,7 @@ use App\Livewire\Concerns\TracksAnalyticsEvents;
 
 class Show extends Component
 {
-    use TracksAnalyticsEvents;
+    use TracksAnalyticsEvents, WithFileUploads;
 
     public Trip $trip;
 
@@ -63,17 +66,60 @@ class Show extends Component
 
     public ?int $selectedLocationIdForComment = null;
 
+    public bool $showAddDocumentModal = false;
+
+    /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
+    public $newDocument = null;
+
+    public string $newDocumentTitle = '';
+
+    public ?string $newDocumentDescription = null;
+
+    public bool $showEditDocumentModal = false;
+
+    public ?int $editingDocumentId = null;
+
+    public array $editingDocument = [
+        'title' => '',
+        'description' => '',
+    ];
+
+    /**
+     * Every relation the view needs eager-loaded, including nested paths
+     * (e.g. documents.uploader). Shared by mount() and refreshTrip() — a
+     * plain Model::refresh() only reloads relations by their top-level key,
+     * silently dropping nested paths back to lazy-loaded, so every reload
+     * after an action goes through refreshTrip() instead, never a bare
+     * $this->trip->refresh().
+     */
+    private const TRIP_RELATIONS = [
+        'creator', 'participants',
+        'locations.votes', 'locations.comments.user',
+        'expenses.owner', 'expenses.shares',
+        'settlements',
+        'documents.uploader',
+    ];
+
     /**
      * Mount the component.
      */
     public function mount(Trip $trip): void
     {
-        $this->trip = $trip->load(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.shares', 'settlements']);
+        $this->trip = $trip->load(self::TRIP_RELATIONS);
+    }
+
+    /**
+     * Reload the trip with everything the view needs eager-loaded — see
+     * TRIP_RELATIONS.
+     */
+    private function refreshTrip(): void
+    {
+        $this->trip = $this->trip->fresh(self::TRIP_RELATIONS);
     }
 
     public function updatedExpandedLocationId(): void
     {
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -103,7 +149,7 @@ class Show extends Component
 
         $this->trackEvent('location_accepted', ['trip_id' => $this->trip->id, 'location_id' => $location->id]);
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -118,7 +164,7 @@ class Show extends Component
 
         $this->trackEvent('location_deleted', ['trip_id' => $this->trip->id, 'location_id' => $locationId]);
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -131,7 +177,7 @@ class Show extends Component
         $location = $this->trip->locations()->findOrFail($locationId);
         $location->toggleVote(Auth::user());
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -215,7 +261,7 @@ class Show extends Component
         $this->trackEvent('trip_participant_added', ['trip_id' => $this->trip->id]);
 
         $this->participantSearch = '';
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -229,7 +275,7 @@ class Show extends Component
 
         $this->trackEvent('trip_participant_removed', ['trip_id' => $this->trip->id]);
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -299,7 +345,7 @@ class Show extends Component
         $this->trackEvent('location_comment_added', ['trip_id' => $this->trip->id, 'location_id' => $locationId]);
 
         $this->commentTexts[$locationId] = '';
-        $this->trip->refresh();
+        $this->refreshTrip();
         $this->closeAddCommentModal();
     }
 
@@ -317,7 +363,7 @@ class Show extends Component
 
         $comment->delete();
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -343,6 +389,182 @@ class Show extends Component
     }
 
     /**
+     * Open the add document modal.
+     */
+    public function openAddDocumentModal(): void
+    {
+        $this->ensureIsCreatorOrParticipant();
+
+        $this->resetValidation();
+        $this->newDocument = null;
+        $this->newDocumentTitle = '';
+        $this->newDocumentDescription = null;
+        $this->showAddDocumentModal = true;
+    }
+
+    /**
+     * Close the add document modal.
+     */
+    public function closeAddDocumentModal(): void
+    {
+        $this->resetValidation();
+        $this->showAddDocumentModal = false;
+        $this->newDocument = null;
+        $this->newDocumentTitle = '';
+        $this->newDocumentDescription = null;
+    }
+
+    /**
+     * Upload and attach a document to the trip.
+     */
+    public function addDocument(): void
+    {
+        $this->ensureIsCreatorOrParticipant();
+
+        // documents.max_upload_kb and the infra-level upload ceiling
+        // (Dockerfile's upload_max_filesize/post_max_size,
+        // docker/nginx/default.conf's client_max_body_size) are configured
+        // independently — see config/documents.php. If they've drifted, a
+        // file that passes validation below would still get silently
+        // rejected/truncated by nginx or PHP before this action ever runs
+        // again. Fail loudly here instead, scoped to this one action rather
+        // than every route in the app.
+        if (config('documents.max_upload_kb') > config('documents.infra_max_upload_kb')) {
+            throw new \RuntimeException(
+                'config(documents.max_upload_kb) exceeds config(documents.infra_max_upload_kb) — raise the '
+                .'Dockerfile/nginx upload limits together with TRIP_DOCUMENTS_MAX_UPLOAD_KB.'
+            );
+        }
+
+        $validated = $this->validate([
+            'newDocument' => [
+                'required',
+                'file',
+                'max:'.config('documents.max_upload_kb'),
+                'mimes:'.implode(',', config('documents.allowed_mimes')),
+            ],
+            'newDocumentTitle' => ['required', 'string', 'max:255'],
+            'newDocumentDescription' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $disk = config('documents.disk');
+        $path = $this->newDocument->store('trip-'.$this->trip->id, $disk);
+
+        // The documents disk sets 'throw' => false (config/filesystems.php),
+        // so a storage failure (permissions, full disk) surfaces as store()
+        // returning false rather than an exception — without this check
+        // we'd persist a document row pointing at a file that was never
+        // actually written.
+        if ($path === false) {
+            $this->addError('newDocument', __('The file could not be uploaded. Please try again.'));
+
+            return;
+        }
+
+        $document = $this->trip->documents()->create([
+            'user_id' => Auth::id(),
+            'title' => $validated['newDocumentTitle'],
+            'description' => $validated['newDocumentDescription'] ?? null,
+            'disk' => $disk,
+            'path' => $path,
+            'original_filename' => $this->newDocument->getClientOriginalName(),
+            'mime_type' => $this->newDocument->getMimeType(),
+            'size' => $this->newDocument->getSize(),
+        ]);
+
+        $this->trackEvent('document_uploaded', ['trip_id' => $this->trip->id, 'document_id' => $document->id]);
+
+        $this->closeAddDocumentModal();
+        $this->refreshTrip();
+    }
+
+    /**
+     * Stream a document's file to the browser as a download. Any trip
+     * creator or participant can download; ensureIsCreatorOrParticipant()
+     * also covers the case where the trip itself was loaded without a
+     * membership check anywhere upstream.
+     */
+    public function downloadDocument(int $documentId)
+    {
+        $this->ensureIsCreatorOrParticipant();
+
+        $document = $this->trip->documents()->findOrFail($documentId);
+
+        return Storage::disk($document->disk)->download($document->path, $document->original_filename);
+    }
+
+    /**
+     * Open the edit document modal (title/description only — the file
+     * itself isn't replaceable, only re-uploaded as a new document).
+     */
+    public function openEditDocumentModal(int $documentId): void
+    {
+        $document = $this->trip->documents()->findOrFail($documentId);
+
+        $this->ensureCanManageDocument($document);
+
+        $this->resetValidation();
+        $this->editingDocumentId = $documentId;
+        $this->editingDocument = [
+            'title' => $document->title,
+            'description' => $document->description ?? '',
+        ];
+        $this->showEditDocumentModal = true;
+    }
+
+    /**
+     * Close the edit document modal.
+     */
+    public function closeEditDocumentModal(): void
+    {
+        $this->resetValidation();
+        $this->showEditDocumentModal = false;
+        $this->editingDocumentId = null;
+        $this->editingDocument = ['title' => '', 'description' => ''];
+    }
+
+    /**
+     * Save the edited document's title/description.
+     */
+    public function updateDocument(int $documentId): void
+    {
+        $document = $this->trip->documents()->findOrFail($documentId);
+
+        $this->ensureCanManageDocument($document);
+
+        $validated = $this->validate([
+            'editingDocument.title' => ['required', 'string', 'max:255'],
+            'editingDocument.description' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $document->update([
+            'title' => $validated['editingDocument']['title'],
+            'description' => $validated['editingDocument']['description'] ?? null,
+        ]);
+
+        $this->trackEvent('document_updated', ['trip_id' => $this->trip->id, 'document_id' => $documentId]);
+
+        $this->closeEditDocumentModal();
+        $this->refreshTrip();
+    }
+
+    /**
+     * Delete a document (and its underlying file — see TripDocument::booted()).
+     */
+    public function deleteDocument(int $documentId): void
+    {
+        $document = $this->trip->documents()->findOrFail($documentId);
+
+        $this->ensureCanManageDocument($document);
+
+        $document->delete();
+
+        $this->trackEvent('document_deleted', ['trip_id' => $this->trip->id, 'document_id' => $documentId]);
+
+        $this->refreshTrip();
+    }
+
+    /**
      * Delete an expense.
      */
     public function deleteExpense(int $expenseId): void
@@ -359,7 +581,7 @@ class Show extends Component
 
         $this->trackEvent('expense_deleted', ['trip_id' => $this->trip->id, 'expense_id' => $expenseId]);
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -480,7 +702,7 @@ class Show extends Component
         $this->trackEvent('expense_updated', ['trip_id' => $this->trip->id, 'expense_id' => $expenseId]);
 
         $this->closeEditExpenseModal();
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -592,7 +814,7 @@ class Show extends Component
 
         $this->trackEvent('settlement_recorded', ['trip_id' => $this->trip->id, 'amount_cents' => $amountCents]);
 
-        $this->trip->refresh();
+        $this->refreshTrip();
     }
 
     /**
@@ -624,11 +846,50 @@ class Show extends Component
     }
 
     /**
+     * Whether the current user is the trip creator or a participant. The
+     * single source of truth behind ensureIsCreatorOrParticipant() (for
+     * actions) and the Documents section in the view (for what's rendered)
+     * — see resources/views/livewire/trips/show.blade.php.
+     */
+    public function getIsTripMemberProperty(): bool
+    {
+        return $this->trip->user_id === Auth::id() || $this->trip->participants->contains(Auth::id());
+    }
+
+    /**
      * Abort with a 403 unless the current user is the trip creator or a participant.
      */
     private function ensureIsCreatorOrParticipant(): void
     {
-        if ($this->trip->user_id !== Auth::id() && ! $this->trip->participants->contains(Auth::id())) {
+        if (! $this->isTripMember) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Whether the current user can edit/delete the given document: the trip
+     * creator always can; otherwise only the uploader, and only while
+     * they're still a trip member — someone removed as a participant (see
+     * removeParticipant()) loses management rights over documents they
+     * uploaded, the same way they lose every other trip-member action.
+     * Single source of truth behind ensureCanManageDocument() (for actions)
+     * and the per-document edit/delete buttons in the view.
+     */
+    public function canManageDocument(TripDocument $document): bool
+    {
+        if ($this->trip->user_id === Auth::id()) {
+            return true;
+        }
+
+        return $document->user_id === Auth::id() && $this->isTripMember;
+    }
+
+    /**
+     * Abort with a 403 unless the current user can manage the given document.
+     */
+    private function ensureCanManageDocument(TripDocument $document): void
+    {
+        if (! $this->canManageDocument($document)) {
             abort(403);
         }
     }
