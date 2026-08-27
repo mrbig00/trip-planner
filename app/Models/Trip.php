@@ -16,6 +16,18 @@ class Trip extends Model
     /** @use HasFactory<\Database\Factories\TripFactory> */
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        // trip_documents.trip_id cascades at the database level, which would
+        // delete the rows directly — bypassing TripDocument::booted()'s own
+        // `deleting` hook that removes the underlying stored file. Walk them
+        // through Eloquent explicitly first so uploads never outlive the
+        // trip on disk.
+        static::deleting(function (Trip $trip) {
+            $trip->documents()->get()->each->delete();
+        });
+    }
+
     /**
      * The attributes that are mass assignable.
      *
@@ -119,6 +131,14 @@ class Trip extends Model
     public function settlements(): HasMany
     {
         return $this->hasMany(Settlement::class);
+    }
+
+    /**
+     * Get the documents attached to the trip, newest first.
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(TripDocument::class)->latest();
     }
 
     /**

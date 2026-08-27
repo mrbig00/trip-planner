@@ -120,6 +120,26 @@ spec:
     requests:
       storage: 5Gi
 ---
+# Separate from laravel-storage on purpose: that volume also backs ephemeral
+# framework cache/session/view data, while this holds irreplaceable
+# user-uploaded trip documents — kept on its own claim so it can be resized
+# and backed up independently. See App\Models\TripDocument /
+# config/documents.php. RWO + a single replica, same as laravel-storage; a
+# move to multiple replicas would need this on S3 instead (already wired as
+# the "s3" disk in config/filesystems.php).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: trip-documents-storage
+  labels:
+    app: trip-planner
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -136,6 +156,17 @@ spec:
       labels:
         app: trip-planner
     spec:
+      # The laravel container runs as www-data (uid/gid 33 in the
+      # serversideup/php-frankenphp base image — see production.Dockerfile).
+      # fsGroup makes the kubelet chgrp every mounted volume (including a
+      # freshly-provisioned trip-documents-storage PVC, which starts out
+      # root-owned) to that group on mount, so www-data can write to it
+      # without depending on the image doing its own chown at startup.
+      # OnRootMismatch skips re-chowning on every restart once it's already
+      # set, so this doesn't add a recursive chgrp pass on a growing volume.
+      securityContext:
+        fsGroup: 33
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: redis
           image: redis:7-alpine
@@ -306,10 +337,15 @@ spec:
             - name: laravel-storage
               mountPath: /var/www/html/storage/framework/views
               subPath: framework/views
+            - name: trip-documents-storage
+              mountPath: /var/www/html/storage/app/private/documents
       volumes:
         - name: laravel-storage
           persistentVolumeClaim:
             claimName: laravel-storage
+        - name: trip-documents-storage
+          persistentVolumeClaim:
+            claimName: trip-documents-storage
 ---
 apiVersion: v1
 kind: Service

@@ -74,6 +74,13 @@ function trackPageView() {
 
 function loadGoogleAnalytics(measurementId) {
     if (gaLoaded) {
+        // gtag.js is already on the page from an earlier "granted" (this is
+        // a re-accept after a decline, in the same session) — restore the
+        // Consent Mode signal that revokeGoogleAnalytics() turned off, but
+        // don't re-inject the script or re-run the one-time setup below.
+        window.gtag('consent', 'update', { analytics_storage: 'granted' });
+        trackPageView();
+
         return;
     }
 
@@ -83,6 +90,7 @@ function loadGoogleAnalytics(measurementId) {
     window.gtag = function () {
         window.dataLayer.push(arguments);
     };
+    window.gtag('consent', 'update', { analytics_storage: 'granted' });
     window.gtag('js', new Date());
     // Page views are sent manually (trackPageView, below) rather than
     // automatically, so the one for the current page only fires once
@@ -99,6 +107,29 @@ function loadGoogleAnalytics(measurementId) {
 }
 
 /**
+ * Build the list of `domain` attribute values a GA cookie could plausibly
+ * have been set with, so it can actually be deleted: gtag.js's default
+ * `cookie_domain: 'auto'` sets `_ga`/`_ga_*` on the parent registrable
+ * domain with a leading dot (e.g. `.example.com`) whenever the site is
+ * served from a subdomain (e.g. `app.example.com`), not just the exact
+ * hostname. This walks up the label chain trying each parent domain, both
+ * bare and dotted — a reasonable heuristic without a public-suffix-list
+ * dependency; it doesn't special-case multi-part suffixes like `co.uk`, but
+ * those aren't in play for this app's own domain.
+ */
+function cookieDomainVariants(hostname) {
+    const labels = hostname.split('.');
+    const variants = [];
+
+    for (let i = 0; i < labels.length - 1; i++) {
+        const domain = labels.slice(i).join('.');
+        variants.push(domain, `.${domain}`);
+    }
+
+    return variants.length ? variants : [hostname];
+}
+
+/**
  * Undo loadGoogleAnalytics() when consent is withdrawn after having been
  * granted: tell gtag.js to stop collecting (Google's Consent Mode signal —
  * the library is already loaded and would otherwise keep measuring
@@ -111,11 +142,13 @@ function revokeGoogleAnalytics(measurementId) {
     }
 
     const idSuffix = measurementId.replace(/^G-/, '');
-    const domain = window.location.hostname;
+    const domains = cookieDomainVariants(window.location.hostname);
 
     for (const name of ['_ga', `_ga_${idSuffix}`]) {
         document.cookie = `${name}=; Max-Age=0; path=/`;
-        document.cookie = `${name}=; Max-Age=0; path=/; domain=${domain}`;
+        for (const domain of domains) {
+            document.cookie = `${name}=; Max-Age=0; path=/; domain=${domain}`;
+        }
     }
 }
 
