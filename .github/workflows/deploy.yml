@@ -31,8 +31,14 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
+  # Pre-deploy safety net: same backup steps as the nightly schedule in
+  # backup-database.yml, called via workflow_call so they're defined once.
+  backup:
+    uses: ./.github/workflows/backup-database.yml
+    secrets: inherit
+
   deploy:
-    needs: build
+    needs: [build, backup]
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -44,19 +50,6 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBE_CONFIG }}
-
-      - name: Back up database
-        run: |
-          kubectl exec -n "$K8S_NAMESPACE" postgres-0 -- \
-            sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
-            > backup-${{ github.sha }}.sql
-
-      - name: Upload database backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: db-backup-${{ github.sha }}
-          path: backup-${{ github.sha }}.sql
-          retention-days: 7
 
       - name: Apply Kubernetes manifests
         run: kubectl apply -n "$K8S_NAMESPACE" -f kubernetes/app.yaml
