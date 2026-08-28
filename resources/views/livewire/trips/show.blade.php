@@ -1019,6 +1019,14 @@
                             :description="__('1 :from = ___ :to', ['from' => $editingExpenseCurrency, 'to' => $trip->currency->value])"
                             required
                         />
+                        <div wire:loading wire:target="editingExpense.currency">
+                            <flux:text class="text-xs text-neutral-400 mt-1">{{ __("Looking up today's rate…") }}</flux:text>
+                        </div>
+                        @if (! ($editingExpense['exchange_rate'] ?? null))
+                            <flux:text class="text-xs text-neutral-500 mt-1" wire:loading.remove wire:target="editingExpense.currency">
+                                {{ __("Couldn't find today's rate automatically — enter it yourself.") }}
+                            </flux:text>
+                        @endif
                     </flux:field>
                 @endif
             </div>

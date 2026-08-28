@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\FetchExchangeRate;
 use App\Actions\Expenses\ValidateExpenseSplit;
 use App\Enums\Currency;
 use App\Enums\ExpenseSplitType;
@@ -60,6 +61,22 @@ new class extends Component {
      */
     public function updated(string $name): void
     {
+        if ($name === 'currency') {
+            // Best-effort convenience prefill, never trusted for the actual
+            // conversion — the user can always override it, and it's still
+            // validated as required at submit time (see store()). Left null
+            // (for the user to fill in by hand) whenever the currency
+            // matches the trip's own, is invalid (wire:model.live is a
+            // client-mutable property), the lookup fails, or the pair isn't
+            // available.
+            $selected = Currency::tryFrom($this->currency);
+            $tripCurrency = $this->trip->currency ?? Currency::default();
+
+            $this->exchange_rate = ($selected === null || $selected === $tripCurrency)
+                ? null
+                : app(FetchExchangeRate::class)->fetch($selected, $tripCurrency);
+        }
+
         if ($name === 'participant_ids' || $name === 'split_type') {
             $this->percentages = collect($this->percentages)->only($this->participant_ids)->all();
             $this->fixed_amounts = collect($this->fixed_amounts)->only($this->participant_ids)->all();
@@ -233,6 +250,14 @@ new class extends Component {
                             :description="__('1 :from = ___ :to', ['from' => $currency, 'to' => $trip->currency->value])"
                             required
                         />
+                        <div wire:loading wire:target="currency">
+                            <flux:text class="text-xs text-neutral-400 mt-1">{{ __("Looking up today's rate…") }}</flux:text>
+                        </div>
+                        @if (! $exchange_rate)
+                            <flux:text class="text-xs text-neutral-500 mt-1" wire:loading.remove wire:target="currency">
+                                {{ __("Couldn't find today's rate automatically — enter it yourself.") }}
+                            </flux:text>
+                        @endif
                     </flux:field>
                 @endif
             </div>

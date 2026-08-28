@@ -5,6 +5,7 @@ use App\Models\User;
 use App\Enums\Currency;
 use App\Models\Expense;
 use Livewire\Volt\Volt;
+use Illuminate\Support\Facades\Http;
 
 test('guests cannot access expense create', function () {
     $trip = Trip::factory()->create();
@@ -208,4 +209,48 @@ test('an expense in a different currency persists with its exchange rate', funct
     $expense = Expense::where('name', 'Dinner')->first();
     expect($expense->currency)->toBe(Currency::EUR)
         ->and((float) $expense->exchange_rate)->toBe(1.1);
+});
+
+test('selecting a different currency prefills the exchange rate from the API', function () {
+    Http::fake([
+        'api.frankfurter.dev/*' => Http::response(['rates' => ['USD' => 1.0842]]),
+    ]);
+
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('currency', Currency::EUR->value)
+        ->assertSet('exchange_rate', '1.0842');
+});
+
+test('switching back to the trip\'s own currency clears the prefilled exchange rate', function () {
+    Http::fake([
+        'api.frankfurter.dev/*' => Http::response(['rates' => ['USD' => 1.0842]]),
+    ]);
+
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('currency', Currency::EUR->value)
+        ->assertSet('exchange_rate', '1.0842')
+        ->set('currency', Currency::USD->value)
+        ->assertSet('exchange_rate', null);
+});
+
+test('a failed exchange rate lookup leaves the field blank for manual entry', function () {
+    Http::fake([
+        'api.frankfurter.dev/*' => Http::response(null, 500),
+    ]);
+
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('currency', Currency::EUR->value)
+        ->assertSet('exchange_rate', null);
 });

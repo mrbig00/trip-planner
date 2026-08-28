@@ -2,11 +2,13 @@
 
 use App\Models\Trip;
 use App\Models\User;
+use App\Enums\Currency;
 use App\Models\Expense;
 use Livewire\Volt\Volt;
 use App\Models\Location;
 use App\Models\LocationComment;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 test('trip creator can accept a location', function () {
     $owner = User::factory()->create();
@@ -546,6 +548,22 @@ test('openEditExpenseModal populates fields and closeEditExpenseModal clears the
     $component->call('closeEditExpenseModal')
         ->assertSet('showEditExpenseModal', false)
         ->assertSet('editingExpenseId', null);
+});
+
+test('changing the edit modal\'s currency prefills the exchange rate from the API', function () {
+    Http::fake([
+        'api.frankfurter.dev/*' => Http::response(['rates' => ['USD' => 1.0842]]),
+    ]);
+
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('openEditExpenseModal', $expense->id)
+        ->set('editingExpense.currency', Currency::EUR->value)
+        ->assertSet('editingExpense.exchange_rate', '1.0842');
 });
 
 test('openEditExpenseModal falls back user_id to the trip creator when the expense has no owner', function () {

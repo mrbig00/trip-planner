@@ -45,4 +45,13 @@ return [
         'id' => env('GOOGLE_ANALYTICS_ID'),
     ],
 
+    // Free, no-API-key exchange rate lookup (ECB reference rates) used only
+    // to prefill Expense::exchange_rate with a sensible starting point — see
+    // App\Actions\Expenses\FetchExchangeRate. Never trusted for the actual
+    // conversion math, which always uses whatever rate ends up stored on
+    // the expense.
+    'frankfurter' => [
+        'url' => env('FRANKFURTER_URL', 'https://api.frankfurter.dev/v1'),
+    ],
+
 ];

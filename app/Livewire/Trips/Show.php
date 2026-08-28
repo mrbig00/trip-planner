@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Actions\Trips\BuildActivityFeed;
+use App\Actions\Expenses\FetchExchangeRate;
 use App\Actions\Expenses\BuildExpenseShares;
 use App\Actions\Expenses\BuildBalanceSummary;
 use App\Actions\Expenses\ValidateExpenseSplit;
@@ -625,6 +626,22 @@ class Show extends Component
      */
     public function updated(string $name): void
     {
+        if ($name === 'editingExpense.currency') {
+            // Best-effort convenience prefill, never trusted for the actual
+            // conversion — the user can always override it, and it's still
+            // validated as required at submit time (see saveExpense()). Left
+            // null (for the user to fill in by hand) whenever the currency
+            // matches the trip's own, is invalid (wire:model.live is a
+            // client-mutable property), the lookup fails, or the pair isn't
+            // available.
+            $selected = Currency::tryFrom($this->editingExpense['currency'] ?? '');
+            $tripCurrency = $this->trip->currency ?? Currency::default();
+
+            $this->editingExpense['exchange_rate'] = ($selected === null || $selected === $tripCurrency)
+                ? null
+                : app(FetchExchangeRate::class)->fetch($selected, $tripCurrency);
+        }
+
         if ($name === 'editingExpense.participant_ids' || $name === 'editingExpense.split_type') {
             $selected = $this->editingExpense['participant_ids'] ?? [];
             $this->editingExpense['percentages'] = collect($this->editingExpense['percentages'] ?? [])->only($selected)->all();
