@@ -1,0 +1,87 @@
+# Nightly off-cluster database backup.
+#
+# Dumps the production Postgres database (kubernetes/app.yaml, pod postgres-0)
+# via kubectl exec — same access pattern already granted to the CI service
+# account in kubernetes/ci-rbac.yaml and already used by the pre-deploy backup
+# step in deploy.yml — and uploads it to a Backblaze B2 bucket through B2's
+# S3-compatible API. Backups older than RETENTION_DAYS are pruned at the end
+# of every run, so the bucket only ever holds a 10-day rolling window without
+# depending on a lifecycle rule configured out-of-band on the bucket itself.
+#
+# One-time setup:
+#   1. Create a B2 bucket (private) and an application key scoped to it.
+#   2. Add repo secrets: B2_KEY_ID, B2_APPLICATION_KEY.
+#   3. Add repo variables: B2_BUCKET, B2_ENDPOINT (e.g.
+#      https://s3.eu-central-003.backblazeb2.com), B2_REGION (the region
+#      suffix from the endpoint, e.g. eu-central-003).
+#   4. KUBE_CONFIG must already exist (it's shared with deploy.yml).
+
+name: Backup Database
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: backup-database
+  cancel-in-progress: false
+
+env:
+  K8S_NAMESPACE: default
+  BACKUP_PREFIX: trip-planner
+  RETENTION_DAYS: 10
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Dump database
+        run: |
+          kubectl exec -n "$K8S_NAMESPACE" postgres-0 -- \
+            sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB"' \
+            > backup.dump
+
+      - name: Upload backup to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.B2_REGION }}
+        run: |
+          timestamp=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          key="${BACKUP_PREFIX}/backup-${timestamp}.dump"
+          echo "KEY=$key" >> "$GITHUB_ENV"
+          aws s3 cp backup.dump "s3://${{ vars.B2_BUCKET }}/${key}" \
+            --endpoint-url "${{ vars.B2_ENDPOINT }}"
+
+      - name: Prune backups older than retention period
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.B2_REGION }}
+        run: |
+          cutoff_epoch=$(date -u -d "-${RETENTION_DAYS} days" +%s)
+
+          aws s3api list-objects-v2 \
+            --bucket "${{ vars.B2_BUCKET }}" \
+            --prefix "${BACKUP_PREFIX}/" \
+            --endpoint-url "${{ vars.B2_ENDPOINT }}" \
+            --query 'Contents[].[Key,LastModified]' \
+            --output text |
+          while IFS=$'\t' read -r object_key last_modified; do
+            [ -z "$object_key" ] || [ "$object_key" = "None" ] && continue
+            modified_epoch=$(date -u -d "$last_modified" +%s)
+            if [ "$modified_epoch" -lt "$cutoff_epoch" ]; then
+              echo "Deleting $object_key (last modified $last_modified)"
+              aws s3 rm "s3://${{ vars.B2_BUCKET }}/${object_key}" \
+                --endpoint-url "${{ vars.B2_ENDPOINT }}"
+            fi
+          done

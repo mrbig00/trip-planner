@@ -167,6 +167,32 @@ spec:
       securityContext:
         fsGroup: 33
         fsGroupChangePolicy: OnRootMismatch
+      # fsGroup only chgrp's each volume's own mount root — it doesn't cover
+      # storage/app/private, which isn't a volume root itself, just a plain
+      # directory inside laravel-storage's "app" subPath that happens to also
+      # be the parent of the nested trip-documents-storage mount. Kubelet
+      # auto-creates that parent (root:root 0755) the first time it sets up
+      # the nested mount, and fsGroup's chgrp pass doesn't revisit it
+      # afterwards — so www-data can't write livewire-tmp or anything else
+      # under storage/app/private. This initContainer creates/fixes it as
+      # root before the nested mount (and the laravel container) ever starts,
+      # so kubelet finds it already correctly owned.
+      initContainers:
+        - name: fix-storage-private-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /storage/private
+              chown -R 33:33 /storage/private
+              chmod -R 2775 /storage/private
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: laravel-storage
+              mountPath: /storage
+              subPath: app
       containers:
         - name: redis
           image: redis:7-alpine
