@@ -387,3 +387,23 @@ test('a trip\'s currency is locked once it has an expense', function () {
 
     expect($trip->fresh()->currency)->toBe(Currency::USD);
 });
+
+test('a tampered currencyLocked property cannot bypass the currency lock', function () {
+    // currencyLocked is a plain public Livewire property with no #[Locked]
+    // attribute, so it's client-mutable like any other — the server must
+    // re-derive the lock from the trip's actual persisted expenses rather
+    // than trust it, or a tampered request could set it to false and slip a
+    // currency change past what the disabled control in the view prevents.
+    $user = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $user->id, 'currency' => Currency::USD->value]);
+    Expense::factory()->create(['trip_id' => $trip->id]);
+    $this->actingAs($user);
+
+    Volt::test('trips.edit', ['trip' => $trip])
+        ->set('currencyLocked', false)
+        ->set('currency', Currency::EUR->value)
+        ->call('update')
+        ->assertHasNoErrors();
+
+    expect($trip->fresh()->currency)->toBe(Currency::USD);
+});

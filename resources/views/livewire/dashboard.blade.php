@@ -108,13 +108,26 @@
             <div class="rounded-xl border border-neutral-700 bg-neutral-800/50 p-6">
                 <flux:heading size="lg">{{ __('Spend by Trip') }}</flux:heading>
                 <flux:subheading>{{ __('Highest-spending trips') }}</flux:subheading>
-                @if (count($spendByTrip['labels']) > 0)
-                    <div
-                        class="relative mt-4 h-64"
-                        x-data="barChart({ labels: @js($spendByTrip['labels']), data: @js($spendByTrip['data']), horizontal: true })"
-                    >
-                        <canvas x-ref="canvas"></canvas>
-                    </div>
+                @if (count($spendByTrip) > 0)
+                    {{-- One chart per currency — trips in different currencies aren't
+                    comparable on a single shared bar-chart scale. --}}
+                    @foreach ($spendByTrip as $currency => $series)
+                        @if (count($spendByTrip) > 1)
+                            <flux:text class="mt-4 block text-xs text-neutral-500">{{ $currency }}</flux:text>
+                        @endif
+                        <div
+                            wire:key="spend-by-trip-{{ $currency }}"
+                            class="relative mt-2 h-64"
+                            x-data="barChart({
+                                labels: @js($series['labels']),
+                                data: @js($series['data']),
+                                horizontal: true,
+                                valuePrefix: @js(\App\Enums\Currency::from($currency)->symbol()),
+                            })"
+                        >
+                            <canvas x-ref="canvas"></canvas>
+                        </div>
+                    @endforeach
                 @else
                     <div class="mt-4 flex h-64 items-center justify-center">
                         <flux:text class="text-neutral-400">{{ __('No expenses recorded yet.') }}</flux:text>

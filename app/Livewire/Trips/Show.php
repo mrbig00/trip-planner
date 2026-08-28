@@ -753,10 +753,8 @@ class Show extends Component
         $members = $this->trip->members()->keyBy('id');
 
         return $this->trip->expenses
-            ->flatMap(fn (Expense $expense) => $expense->shares->map(fn ($share) => [
-                'user_id' => $share->user_id,
-                'cents' => $expense->convertToTripCurrencyCents((string) $share->amount),
-            ]))
+            ->flatMap(fn (Expense $expense) => collect($expense->convertedShareCentsByUserId())
+                ->map(fn ($cents, $userId) => ['user_id' => $userId, 'cents' => $cents]))
             ->groupBy('user_id')
             ->map(function ($rows, $userId) use ($members) {
                 $user = $members->get((int) $userId);

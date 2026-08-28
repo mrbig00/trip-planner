@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
+        Schema::table('locations', function (Blueprint $table): void {
             $table->string('currency', 3)->nullable()->after('price');
         });
 
@@ -25,7 +25,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('locations', function (Blueprint $table) {
+        Schema::table('locations', function (Blueprint $table): void {
             $table->dropColumn('currency');
         });
     }
@@ -44,7 +44,7 @@ return new class extends Migration
             ->select('id', 'trip_id')
             ->whereNull('currency')
             ->orderBy('id')
-            ->chunkById(200, function ($locations) {
+            ->chunkById(200, function (\Illuminate\Support\Collection $locations): void {
                 foreach ($locations as $location) {
                     $tripCurrency = DB::table('trips')->where('id', $location->trip_id)->value('currency')
                         ?? Currency::default()->value;

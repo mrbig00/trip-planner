@@ -218,7 +218,7 @@ new class extends Component {
                 <flux:field>
                     <flux:select wire:model.live="currency" :label="__('Currency')" required>
                         @foreach (\App\Enums\Currency::cases() as $currencyOption)
-                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                            <option wire:key="currency-{{ $currencyOption->value }}" value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
                         @endforeach
                     </flux:select>
                 </flux:field>
@@ -258,7 +258,11 @@ new class extends Component {
 
             @php
                 $selectedMembers = $trip->members()->whereIn('id', $participant_ids);
-                $currencySymbol = \App\Enums\Currency::from($currency)->symbol();
+                // wire:model.live means $currency is a client-mutable public
+                // property — tryFrom() with a fallback avoids a ValueError if
+                // it's ever tampered with into something other than a real
+                // currency code.
+                $currencySymbol = (\App\Enums\Currency::tryFrom($currency) ?? \App\Enums\Currency::default())->symbol();
             @endphp
 
             @if ($split_type === 'percentage')

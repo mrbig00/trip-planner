@@ -111,7 +111,7 @@ new class extends Component {
                 <flux:field>
                     <flux:select wire:model="currency" :label="__('Currency')" required>
                         @foreach (\App\Enums\Currency::cases() as $currencyOption)
-                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                            <option wire:key="currency-{{ $currencyOption->value }}" value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
                         @endforeach
                     </flux:select>
                 </flux:field>

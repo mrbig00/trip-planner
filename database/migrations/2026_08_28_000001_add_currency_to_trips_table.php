@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('trips', function (Blueprint $table) {
+        Schema::table('trips', function (Blueprint $table): void {
             $table->string('currency', 3)->nullable()->after('budget');
         });
 
@@ -25,7 +25,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('trips', function (Blueprint $table) {
+        Schema::table('trips', function (Blueprint $table): void {
             $table->dropColumn('currency');
         });
     }

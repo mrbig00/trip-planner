@@ -190,6 +190,36 @@ test('an expense in the trip\'s own currency (null exchange rate) nets at face v
         ->and($balances->get($participant->id))->toBe(-1000);
 });
 
+test('a foreign-currency expense with a rounding-prone rate still keeps the zero-sum invariant', function () {
+    // 0.10 EUR at a 1.1 rate converts to 0.11 USD (11 cents), but two 0.05
+    // shares each independently truncate to 5 cents (10 total, not 11) —
+    // without allocating from the converted total, the payer's +11 credit
+    // wouldn't be fully offset by the sharers' -5/-5 debits, breaking the
+    // invariant that balances always sum to zero.
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $trip->participants()->attach($participant->id);
+
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'unit_price' => 0.10,
+        'quantity' => 1,
+        'currency' => Currency::EUR->value,
+        'exchange_rate' => '1.1',
+    ]);
+    $expense->shares()->createMany([
+        ['user_id' => $owner->id, 'amount' => 0.05],
+        ['user_id' => $participant->id, 'amount' => 0.05],
+    ]);
+
+    $balances = tripWithLoadedExpenses($trip)->balances();
+
+    expect($balances->sum())->toBe(0)
+        ->and($balances->get($owner->id) + $balances->get($participant->id))->toBe(0);
+});
+
 test('a partial settlement leaves the remaining balance', function () {
     $owner = User::factory()->create();
     $participant = User::factory()->create();

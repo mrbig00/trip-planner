@@ -192,8 +192,12 @@ class Trip extends Model
      *
      * Expenses may be recorded in a different currency than the trip's — each
      * expense converts its own total/shares into the trip's currency via its
-     * exchange_rate (see Expense::convertToTripCurrencyCents()) before being
-     * netted here, so this always returns a single-currency figure.
+     * exchange_rate before being netted here, so this always returns a
+     * single-currency figure. Shares are converted together via
+     * Expense::convertedShareCentsByUserId(), not individually, so their sum
+     * always matches converted_total_cents exactly — converting each share
+     * on its own can drift by a cent or two from independent truncation,
+     * which would otherwise silently break the zero-sum invariant below.
      */
     public function balances(): Collection
     {
@@ -204,9 +208,9 @@ class Trip extends Model
                 $balances[$expense->user_id] += $expense->converted_total_cents;
             }
 
-            foreach ($expense->shares as $share) {
-                if ($balances->has($share->user_id)) {
-                    $balances[$share->user_id] -= $expense->convertToTripCurrencyCents((string) $share->amount);
+            foreach ($expense->convertedShareCentsByUserId() as $userId => $cents) {
+                if ($balances->has($userId)) {
+                    $balances[$userId] -= $cents;
                 }
             }
         }

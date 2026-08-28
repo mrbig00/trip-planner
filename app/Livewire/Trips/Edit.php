@@ -68,13 +68,6 @@ class Edit extends Component
             $this->budget = null;
         }
 
-        // The currency select is disabled in the view once locked, but force
-        // it back to the trip's actual value here too — defense in depth
-        // against a tampered request, not just a disabled control.
-        if ($this->currencyLocked) {
-            $this->currency = $this->trip->currency?->value ?? Currency::default()->value;
-        }
-
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -83,6 +76,15 @@ class Edit extends Component
             'budget' => ['nullable', 'numeric', 'min:0'],
             'currency' => ['required', Rule::enum(Currency::class)],
         ]);
+
+        // $currencyLocked is a plain public Livewire property — a tampered
+        // request could set it to false and slip a currency change past the
+        // disabled control in the view, so the lock is re-checked here
+        // against the trip's actual persisted expenses, never trusted from
+        // the client.
+        if ($this->trip->expenses()->exists()) {
+            $validated['currency'] = $this->trip->currency->value;
+        }
 
         $this->trip->update($validated);
 

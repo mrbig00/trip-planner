@@ -13,7 +13,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('expenses', function (Blueprint $table) {
+        Schema::table('expenses', function (Blueprint $table): void {
             $table->string('currency', 3)->nullable()->after('quantity');
             // How many units of the TRIP's currency one unit of this expense's
             // own currency is worth, i.e. amount_in_trip_currency =
@@ -32,7 +32,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('expenses', function (Blueprint $table) {
+        Schema::table('expenses', function (Blueprint $table): void {
             $table->dropColumn(['currency', 'exchange_rate']);
         });
     }
@@ -51,7 +51,7 @@ return new class extends Migration
             ->select('id', 'trip_id')
             ->whereNull('currency')
             ->orderBy('id')
-            ->chunkById(200, function ($expenses) {
+            ->chunkById(200, function (\Illuminate\Support\Collection $expenses): void {
                 foreach ($expenses as $expense) {
                     $tripCurrency = DB::table('trips')->where('id', $expense->trip_id)->value('currency')
                         ?? Currency::default()->value;

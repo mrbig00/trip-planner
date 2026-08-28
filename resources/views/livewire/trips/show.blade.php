@@ -1000,7 +1000,7 @@
                 <flux:field>
                     <flux:select wire:model.live="editingExpense.currency" :label="__('Currency')" required>
                         @foreach (\App\Enums\Currency::cases() as $currencyOption)
-                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                            <option wire:key="currency-{{ $currencyOption->value }}" value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
                         @endforeach
                     </flux:select>
                 </flux:field>
@@ -1024,7 +1024,11 @@
             </div>
 
             @php
-                $editCurrencySymbol = Currency::from($editingExpenseCurrency)->symbol();
+                // wire:model.live means editingExpense.currency is a
+                // client-mutable public property — tryFrom() with a fallback
+                // avoids a ValueError if it's ever tampered with into
+                // something other than a real currency code.
+                $editCurrencySymbol = (Currency::tryFrom($editingExpenseCurrency) ?? Currency::default())->symbol();
             @endphp
 
             @if (isset($editingExpense['unit_price']) && isset($editingExpense['quantity']) && is_numeric($editingExpense['unit_price']))

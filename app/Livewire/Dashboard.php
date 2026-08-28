@@ -144,29 +144,32 @@ class Dashboard extends Component
 
     /**
      * Total spend for the trips with the highest expenses, each trip's total
-     * in its own currency (see Trip::getTotalSpentAttribute()). Trips can use
-     * different currencies, so — since a single bar chart has no per-bar
-     * currency — each label is annotated with its trip's currency code
-     * rather than implying every bar shares the same unit.
+     * in its own currency (see Trip::getTotalSpentAttribute()). Trips in
+     * different currencies aren't comparable on one shared bar-chart scale
+     * (bar length would imply a magnitude that annotating the label alone
+     * can't fix), so this ranks the top 8 separately *within* each currency
+     * and returns one series per currency — the view renders one chart
+     * instance per series.
      *
      * @param  Collection<int, Trip>  $trips
-     * @return array{labels: array<int, string>, data: array<int, float>}
+     * @return array<string, array{labels: array<int, string>, data: array<int, float>}> currency code => chart series
      */
     private function spendByTrip(Collection $trips): array
     {
-        $ranked = $trips
+        return $trips
             ->map(fn (Trip $trip) => [
-                'name' => $trip->name.' ('.($trip->currency ?? Currency::default())->value.')',
+                'currency' => ($trip->currency ?? Currency::default())->value,
+                'name' => $trip->name,
                 'total' => $trip->total_spent,
             ])
             ->filter(fn (array $trip) => $trip['total'] > 0)
-            ->sortByDesc('total')
-            ->take(8)
-            ->values();
-
-        return [
-            'labels' => $ranked->pluck('name')->all(),
-            'data' => $ranked->pluck('total')->all(),
-        ];
+            ->groupBy('currency')
+            ->map(fn (\Illuminate\Support\Collection $group) => $group->sortByDesc('total')->take(8)->values())
+            ->sortKeys()
+            ->map(fn (\Illuminate\Support\Collection $ranked) => [
+                'labels' => $ranked->pluck('name')->all(),
+                'data' => $ranked->pluck('total')->all(),
+            ])
+            ->all();
     }
 }

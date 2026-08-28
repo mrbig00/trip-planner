@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Money;
 use App\Enums\Currency;
 use App\Enums\ExpenseSplitType;
 use Illuminate\Database\Eloquent\Model;
@@ -138,5 +139,59 @@ class Expense extends Model
     public function getConvertedTotalCentsAttribute(): int
     {
         return $this->convertToTripCurrencyCents((string) $this->total);
+    }
+
+    /**
+     * Convert every share's amount into the trip's currency, guaranteeing the
+     * per-share cents always sum to EXACTLY converted_total_cents.
+     *
+     * Converting each share independently (naive per-share truncation via
+     * convertToTripCurrencyCents()) can drift from the expense's own
+     * converted total by a cent or two whenever exchange_rate is involved —
+     * e.g. a 0.10 expense at rate 1.1 converts to 11 cents, but two 0.05
+     * shares each truncate to 5 cents (10 total, not 11). That drift would
+     * silently break the invariant that Trip::balances() always sums to
+     * zero, since the payer side uses converted_total_cents directly.
+     *
+     * Uses the largest-remainder method: floor each share's exact
+     * proportional slice of the converted total, then hand the leftover
+     * cents (always fewer than there are shares) to the shares with the
+     * largest fractional remainders — ties broken by user_id, and PHP's
+     * stable sort (since 8.0) keeps that order, so this is deterministic.
+     *
+     * @return array<int, int> user_id => cents, in the trip's currency
+     */
+    public function convertedShareCentsByUserId(): array
+    {
+        $totalCents = $this->total_in_cents;
+        $convertedTotal = $this->converted_total_cents;
+
+        if ($totalCents === 0 || $this->shares->isEmpty()) {
+            return [];
+        }
+
+        $rows = $this->shares
+            ->sortBy('user_id')
+            ->map(function (ExpenseShare $share) use ($totalCents, $convertedTotal) {
+                $shareCents = Money::toCents((string) $share->amount);
+                $product = bcmul((string) $shareCents, (string) $convertedTotal, 0);
+
+                return [
+                    'user_id' => $share->user_id,
+                    'floor' => (int) bcdiv($product, (string) $totalCents, 0),
+                    'remainder' => (int) bcmod($product, (string) $totalCents),
+                ];
+            })
+            ->values();
+
+        $leftoverCents = $convertedTotal - $rows->sum('floor');
+
+        return $rows
+            ->sortByDesc('remainder')
+            ->values()
+            ->mapWithKeys(fn (array $row, int $index) => [
+                $row['user_id'] => $row['floor'] + ($index < $leftoverCents ? 1 : 0),
+            ])
+            ->all();
     }
 }

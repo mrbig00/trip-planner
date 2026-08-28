@@ -80,8 +80,27 @@ test('dashboard ranks trips by total spend and excludes trips with no expenses',
 
     Livewire::test(Dashboard::class)
         ->assertViewHas('spendByTrip', function (array $spendByTrip) {
-            return $spendByTrip['labels'] === ['Big Spend (USD)', 'Small Spend (USD)']
-                && $spendByTrip['data'] === [500.0, 100.0];
+            return $spendByTrip['USD']['labels'] === ['Big Spend', 'Small Spend']
+                && $spendByTrip['USD']['data'] === [500.0, 100.0];
+        });
+});
+
+test('dashboard ranks trips in different currencies as separate chart series, never combined', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+
+    $usdTrip = Trip::factory()->for($user, 'creator')->create(['name' => 'USD Trip', 'currency' => \App\Enums\Currency::USD->value]);
+    Expense::factory()->for($usdTrip)->create(['unit_price' => 500, 'quantity' => 1]);
+
+    $eurTrip = Trip::factory()->for($user, 'creator')->create(['name' => 'EUR Trip', 'currency' => \App\Enums\Currency::EUR->value]);
+    Expense::factory()->for($eurTrip)->create(['unit_price' => 900, 'quantity' => 1]);
+
+    Livewire::test(Dashboard::class)
+        ->assertViewHas('spendByTrip', function (array $spendByTrip) {
+            return $spendByTrip['USD']['labels'] === ['USD Trip']
+                && $spendByTrip['USD']['data'] === [500.0]
+                && $spendByTrip['EUR']['labels'] === ['EUR Trip']
+                && $spendByTrip['EUR']['data'] === [900.0];
         });
 });
 
