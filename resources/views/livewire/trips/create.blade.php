@@ -44,17 +44,27 @@
                 </flux:field>
             </div>
 
-            <flux:field>
-                <flux:input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    wire:model="budget"
-                    :label="__('Budget')"
-                    :placeholder="__('Optional')"
-                    prefix="$"
-                />
-            </flux:field>
+            <div class="grid gap-6 sm:grid-cols-2">
+                <flux:field>
+                    <flux:input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        wire:model="budget"
+                        :label="__('Budget')"
+                        :placeholder="__('Optional')"
+                        prefix="$"
+                    />
+                </flux:field>
+
+                <flux:field>
+                    <flux:select wire:model="currency" :label="__('Currency')" required>
+                        @foreach (\App\Enums\Currency::cases() as $currencyOption)
+                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            </div>
 
             <flux:separator />
 

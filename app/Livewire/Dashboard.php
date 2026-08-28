@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Livewire;
 
 use App\Models\Trip;
+use App\Enums\Currency;
+use App\Models\Expense;
 use Livewire\Component;
 use App\Models\Location;
 use Illuminate\Support\Carbon;
@@ -91,10 +93,35 @@ class Dashboard extends Component
         return [
             'totalTrips' => $trips->count(),
             'upcomingTrips' => $upcomingTrips->count(),
-            'totalSpend' => $trips->flatMap->expenses->sum('total'),
+            'totalSpendByCurrency' => $this->totalSpendByCurrency($trips),
             'acceptedDestinations' => $locations->where('accepted', true)->count(),
             'proposedDestinations' => $locations->where('accepted', false)->count(),
         ];
+    }
+
+    /**
+     * Total spend across every trip, grouped by each trip's own currency —
+     * different trips can use different currencies, so summing across them
+     * would otherwise silently add, say, USD and EUR as if they were equal.
+     *
+     * @param  Collection<int, Trip>  $trips
+     * @return array<string, float> currency code => total spend
+     */
+    private function totalSpendByCurrency(Collection $trips): array
+    {
+        $totals = [];
+
+        foreach ($trips as $trip) {
+            if ($trip->expenses->isEmpty()) {
+                continue;
+            }
+
+            $currency = ($trip->currency ?? Currency::default())->value;
+            $totals[$currency] = ($totals[$currency] ?? 0)
+                + $trip->expenses->sum(fn (Expense $expense) => $expense->converted_total_cents) / 100;
+        }
+
+        return $totals;
     }
 
     /**
@@ -116,7 +143,11 @@ class Dashboard extends Component
     }
 
     /**
-     * Total spend for the trips with the highest expenses.
+     * Total spend for the trips with the highest expenses, each trip's total
+     * in its own currency (see Trip::getTotalSpentAttribute()). Trips can use
+     * different currencies, so — since a single bar chart has no per-bar
+     * currency — each label is annotated with its trip's currency code
+     * rather than implying every bar shares the same unit.
      *
      * @param  Collection<int, Trip>  $trips
      * @return array{labels: array<int, string>, data: array<int, float>}
@@ -125,8 +156,8 @@ class Dashboard extends Component
     {
         $ranked = $trips
             ->map(fn (Trip $trip) => [
-                'name' => $trip->name,
-                'total' => (float) $trip->expenses->sum('total'),
+                'name' => $trip->name.' ('.($trip->currency ?? Currency::default())->value.')',
+                'total' => $trip->total_spent,
             ])
             ->filter(fn (array $trip) => $trip['total'] > 0)
             ->sortByDesc('total')

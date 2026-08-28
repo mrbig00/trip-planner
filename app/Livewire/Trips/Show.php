@@ -6,7 +6,8 @@ namespace App\Livewire\Trips;
 
 use App\Models\Trip;
 use App\Models\User;
-use App\Support\Money;
+use App\Enums\Currency;
+use App\Models\Expense;
 use Livewire\Component;
 use Illuminate\View\View;
 use App\Models\Settlement;
@@ -51,6 +52,8 @@ class Show extends Component
         'quantity' => 1,
         'user_id' => null,
         'split_type' => 'equal',
+        'currency' => '',
+        'exchange_rate' => '',
         'participant_ids' => [],
         'percentages' => [],
         'fixed_amounts' => [],
@@ -606,6 +609,8 @@ class Show extends Component
             'quantity' => $expense->quantity,
             'user_id' => $expense->user_id ?? $this->trip->user_id,
             'split_type' => $expense->split_type->value,
+            'currency' => ($expense->currency ?? $this->trip->currency ?? Currency::default())->value,
+            'exchange_rate' => $expense->exchange_rate !== null ? (string) $expense->exchange_rate : '',
             'participant_ids' => $expense->shares->isNotEmpty()
                 ? $expense->shares->pluck('user_id')->all()
                 : $this->trip->members()->pluck('id')->all(),
@@ -660,12 +665,24 @@ class Show extends Component
             'editingExpense.quantity' => ['required', 'integer', 'min:1'],
             'editingExpense.user_id' => ['required', 'exists:users,id', 'in:'.implode(',', $eligibleUserIds)],
             'editingExpense.split_type' => ['required', Rule::enum(ExpenseSplitType::class)],
+            'editingExpense.currency' => ['required', Rule::enum(Currency::class)],
+            'editingExpense.exchange_rate' => [
+                'nullable', 'numeric', 'min:0.000001',
+                'required_unless:editingExpense.currency,'.$this->trip->currency?->value,
+            ],
             'editingExpense.participant_ids' => ['required', 'array', 'min:1'],
             'editingExpense.participant_ids.*' => ['integer', 'in:'.implode(',', $eligibleUserIds), 'distinct'],
         ]);
 
         $splitType = ExpenseSplitType::from($validated['editingExpense']['split_type']);
         $totalCents = (int) bcmul(bcmul((string) $validated['editingExpense']['unit_price'], '100', 0), (string) $validated['editingExpense']['quantity'], 0);
+
+        // A same-currency expense never carries a rate, regardless of what a
+        // stale/hidden field might have posted — null is the one meaning
+        // "same as the trip's currency" everywhere else reads it.
+        $exchangeRate = $validated['editingExpense']['currency'] === $this->trip->currency?->value
+            ? null
+            : $validated['editingExpense']['exchange_rate'];
 
         app(ValidateExpenseSplit::class)->validate(
             $splitType,
@@ -675,7 +692,7 @@ class Show extends Component
             $totalCents
         );
 
-        DB::transaction(function () use ($expense, $validated, $splitType, $totalCents) {
+        DB::transaction(function () use ($expense, $validated, $splitType, $totalCents, $exchangeRate) {
             $expense->update([
                 'name' => $validated['editingExpense']['name'],
                 'description' => $validated['editingExpense']['description'] ?? null,
@@ -685,6 +702,8 @@ class Show extends Component
                 'user_id' => $validated['editingExpense']['user_id'],
                 'updated_by' => Auth::id(),
                 'split_type' => $splitType->value,
+                'currency' => $validated['editingExpense']['currency'],
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $expense->shares()->delete();
@@ -734,14 +753,17 @@ class Show extends Component
         $members = $this->trip->members()->keyBy('id');
 
         return $this->trip->expenses
-            ->flatMap->shares
+            ->flatMap(fn (Expense $expense) => $expense->shares->map(fn ($share) => [
+                'user_id' => $share->user_id,
+                'cents' => $expense->convertToTripCurrencyCents((string) $share->amount),
+            ]))
             ->groupBy('user_id')
-            ->map(function ($shares, $userId) use ($members) {
+            ->map(function ($rows, $userId) use ($members) {
                 $user = $members->get((int) $userId);
 
                 return [
                     'user' => $user,
-                    'amountCents' => $shares->sum(fn ($share) => Money::toCents((string) $share->amount)),
+                    'amountCents' => $rows->sum('cents'),
                     'slot' => $user ? $this->trip->colorSlotFor($user) : null,
                 ];
             })

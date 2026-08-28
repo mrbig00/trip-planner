@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Livewire\Trips;
 
 use App\Models\Trip;
+use App\Enums\Currency;
 use Livewire\Component;
 use Illuminate\View\View;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use App\Livewire\Concerns\TracksAnalyticsEvents;
 
@@ -24,6 +26,13 @@ class Create extends Component
 
     public ?string $budget = null;
 
+    public string $currency = '';
+
+    public function mount(): void
+    {
+        $this->currency = Currency::default()->value;
+    }
+
     /**
      * Create a new trip.
      */
@@ -39,6 +48,7 @@ class Create extends Component
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'budget' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['required', Rule::enum(Currency::class)],
         ]);
 
         $trip = Trip::create([

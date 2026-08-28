@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\Currency;
 use App\Models\Location;
 use App\Models\Trip;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 use App\Livewire\Concerns\TracksAnalyticsEvents;
 use function Livewire\Volt\layout;
@@ -17,6 +19,7 @@ new class extends Component {
 
     public string $name = '';
     public ?string $price = null;
+    public string $currency = '';
     public ?string $latitude = null;
     public ?string $longitude = null;
     public ?string $link = null;
@@ -44,6 +47,7 @@ new class extends Component {
         $this->location = $location;
         $this->name = $location->name;
         $this->price = $location->price ? (string) $location->price : null;
+        $this->currency = ($location->currency ?? $trip->currency ?? Currency::default())->value;
         $this->latitude = $location->latitude ? (string) $location->latitude : null;
         $this->longitude = $location->longitude ? (string) $location->longitude : null;
         $this->link = $location->link;
@@ -58,6 +62,7 @@ new class extends Component {
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'price' => ['nullable', 'numeric', 'min:0'],
+            'currency' => ['required', Rule::enum(Currency::class)],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'link' => ['nullable', 'url', 'max:255'],
@@ -92,15 +97,25 @@ new class extends Component {
                 />
             </flux:field>
 
-            <flux:field>
-                <flux:input
-                    wire:model="price"
-                    type="number"
-                    step="0.01"
-                    :label="__('Price')"
-                    :placeholder="__('0.00')"
-                />
-            </flux:field>
+            <div class="grid gap-6 md:grid-cols-2">
+                <flux:field>
+                    <flux:input
+                        wire:model="price"
+                        type="number"
+                        step="0.01"
+                        :label="__('Price')"
+                        :placeholder="__('0.00')"
+                    />
+                </flux:field>
+
+                <flux:field>
+                    <flux:select wire:model="currency" :label="__('Currency')" required>
+                        @foreach (\App\Enums\Currency::cases() as $currencyOption)
+                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            </div>
 
             <div class="grid gap-6 md:grid-cols-2">
                 <flux:field>

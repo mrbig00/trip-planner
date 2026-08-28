@@ -44,7 +44,7 @@ test('dashboard shows stats for trips the user created or participates in', func
     Livewire::test(Dashboard::class)
         ->assertViewHas('stats', function (array $stats) {
             return $stats['totalTrips'] === 2
-                && (float) $stats['totalSpend'] === 200.0
+                && (float) $stats['totalSpendByCurrency']['USD'] === 200.0
                 && $stats['acceptedDestinations'] === 1
                 && $stats['proposedDestinations'] === 1;
         });
@@ -80,7 +80,7 @@ test('dashboard ranks trips by total spend and excludes trips with no expenses',
 
     Livewire::test(Dashboard::class)
         ->assertViewHas('spendByTrip', function (array $spendByTrip) {
-            return $spendByTrip['labels'] === ['Big Spend', 'Small Spend']
+            return $spendByTrip['labels'] === ['Big Spend (USD)', 'Small Spend (USD)']
                 && $spendByTrip['data'] === [500.0, 100.0];
         });
 });

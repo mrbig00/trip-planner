@@ -6,11 +6,11 @@ namespace App\Livewire\People;
 
 use App\Models\Trip;
 use App\Models\User;
-use App\Support\Money;
+use App\Enums\Currency;
+use Livewire\Component;
+use Illuminate\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
-use Livewire\Component;
 
 class Index extends Component
 {
@@ -32,7 +32,7 @@ class Index extends Component
      * result only ever means these two people had no direct expense or
      * settlement together on that trip, which is simply true.
      *
-     * @return Collection<int, array{user: User, trips: Collection<int, Trip>, netCents: int}>
+     * @return Collection<int, array{user: User, trips: Collection<int, Trip>, netCentsByCurrency: array<string, int>}>
      */
     private function companions(): Collection
     {
@@ -52,15 +52,18 @@ class Index extends Component
                 continue;
             }
 
+            $currency = ($trip->currency ?? Currency::default())->value;
+
             foreach ($others as $other) {
                 $entry = $companions->get($other->id) ?? [
                     'user' => $other,
                     'trips' => collect(),
-                    'netCents' => 0,
+                    'netCentsByCurrency' => [],
                 ];
 
                 $entry['trips']->put($trip->id, $trip);
-                $entry['netCents'] += $this->bilateralNetCents($trip, $userId, $other->id);
+                $entry['netCentsByCurrency'][$currency] = ($entry['netCentsByCurrency'][$currency] ?? 0)
+                    + $this->bilateralNetCents($trip, $userId, $other->id);
 
                 $companions->put($other->id, $entry);
             }
@@ -70,7 +73,8 @@ class Index extends Component
     }
 
     /**
-     * Net cents owed between exactly $userId and $otherId on one trip:
+     * Net cents owed between exactly $userId and $otherId on one trip, in
+     * that trip's own currency (see Expense::convertToTripCurrencyCents()):
      * positive means $otherId owes $userId, negative means the reverse.
      * Requires `expenses.shares` and `settlements` to be eager-loaded.
      */
@@ -91,9 +95,9 @@ class Index extends Component
                 }
 
                 if ($payerId === $userId && $share->user_id === $otherId) {
-                    $netCents += Money::toCents((string) $share->amount);
+                    $netCents += $expense->convertToTripCurrencyCents((string) $share->amount);
                 } elseif ($payerId === $otherId && $share->user_id === $userId) {
-                    $netCents -= Money::toCents((string) $share->amount);
+                    $netCents -= $expense->convertToTripCurrencyCents((string) $share->amount);
                 }
             }
         }

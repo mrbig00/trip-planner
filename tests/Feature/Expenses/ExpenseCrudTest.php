@@ -1,8 +1,9 @@
 <?php
 
-use App\Models\Expense;
 use App\Models\Trip;
 use App\Models\User;
+use App\Enums\Currency;
+use App\Models\Expense;
 use Livewire\Volt\Volt;
 
 test('guests cannot access expense create', function () {
@@ -149,3 +150,62 @@ test('expense creation rejects an invalid link', function () {
         ->assertHasErrors(['link']);
 });
 
+test('create mount defaults currency to the trip\'s currency', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::EUR->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->assertSet('currency', Currency::EUR->value);
+});
+
+test('an expense in the trip\'s own currency needs no exchange rate', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Dinner')
+        ->set('unit_price', '20')
+        ->set('quantity', 2)
+        ->set('currency', Currency::USD->value)
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $expense = Expense::where('name', 'Dinner')->first();
+    expect($expense->currency)->toBe(Currency::USD)
+        ->and($expense->exchange_rate)->toBeNull();
+});
+
+test('an expense in a different currency requires an exchange rate', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Dinner')
+        ->set('unit_price', '20')
+        ->set('quantity', 2)
+        ->set('currency', Currency::EUR->value)
+        ->call('store')
+        ->assertHasErrors(['exchange_rate']);
+});
+
+test('an expense in a different currency persists with its exchange rate', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Dinner')
+        ->set('unit_price', '20')
+        ->set('quantity', 2)
+        ->set('currency', Currency::EUR->value)
+        ->set('exchange_rate', '1.1')
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $expense = Expense::where('name', 'Dinner')->first();
+    expect($expense->currency)->toBe(Currency::EUR)
+        ->and((float) $expense->exchange_rate)->toBe(1.1);
+});

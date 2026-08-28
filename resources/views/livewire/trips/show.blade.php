@@ -1,3 +1,5 @@
+@php use App\Support\Money; use App\Enums\Currency; @endphp
+
 <div
     class="flex h-full w-full flex-1 flex-col gap-6"
     x-data="{
@@ -48,7 +50,7 @@
                         />
                     @endforeach
                 </div>
-                <flux:badge size="sm">{{ __('Total') }}: ${{ number_format($this->totalExpenses, 2) }}</flux:badge>
+                <flux:badge size="sm">{{ __('Total') }}: {{ Money::formatDecimal((string) $this->totalExpenses, $trip->currency ?? Currency::default()) }}</flux:badge>
                 @if ($trip->countdownLabel())
                     <flux:badge size="sm" variant="ghost" class="bg-neutral-700/50 text-neutral-300">
                         {{ $trip->countdownLabel() }}
@@ -62,11 +64,11 @@
                         <flux:text class="text-xs text-neutral-400">{{ __('Budget') }}</flux:text>
                         @if ($summary['overBudget'])
                             <flux:text class="text-xs text-red-400">
-                                ${{ number_format(abs($summary['remaining']), 2) }} {{ __('over budget') }}
+                                {{ Money::formatDecimal((string) abs($summary['remaining']), $trip->currency ?? Currency::default()) }} {{ __('over budget') }}
                             </flux:text>
                         @else
                             <flux:text class="text-xs text-neutral-400">
-                                ${{ number_format($summary['spent'], 2) }} / ${{ number_format($summary['budget'], 2) }}
+                                {{ Money::formatDecimal((string) $summary['spent'], $trip->currency ?? Currency::default()) }} / {{ Money::formatDecimal((string) $summary['budget'], $trip->currency ?? Currency::default()) }}
                             </flux:text>
                         @endif
                     </div>
@@ -176,7 +178,7 @@
                                     </div>
                                     @if ($location->price)
                                         <flux:text class="text-sm mt-1">
-                                            {{ __('Price') }}: ${{ number_format($location->price, 2) }}
+                                            {{ __('Price') }}: {{ Money::formatDecimal((string) $location->price, $location->currency ?? $trip->currency ?? Currency::default()) }}
                                         </flux:text>
                                     @endif
                                     @if ($location->latitude && $location->longitude)
@@ -431,13 +433,13 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-right">
-                                        <flux:text>${{ number_format($expense->unit_price, 2) }}</flux:text>
+                                        <flux:text>{{ Money::formatDecimal((string) $expense->unit_price, $expense->currency ?? $trip->currency ?? Currency::default()) }}</flux:text>
                                     </td>
                                     <td class="px-4 py-3 text-right">
                                         <flux:text>{{ $expense->quantity }}</flux:text>
                                     </td>
                                     <td class="px-4 py-3 text-right">
-                                        <flux:text class="font-semibold">${{ number_format($expense->total, 2) }}</flux:text>
+                                        <flux:text class="font-semibold">{{ Money::formatDecimal((string) $expense->total, $expense->currency ?? $trip->currency ?? Currency::default()) }}</flux:text>
                                     </td>
                                     <td class="px-4 py-3 text-right">
                                         <div class="flex items-center justify-end gap-2">
@@ -474,7 +476,7 @@
                                     <flux:text class="font-semibold">{{ __('Total') }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <flux:text class="font-semibold text-lg">${{ number_format($this->totalExpenses, 2) }}</flux:text>
+                                    <flux:text class="font-semibold text-lg">{{ Money::formatDecimal((string) $this->totalExpenses, $trip->currency ?? Currency::default()) }}</flux:text>
                                 </td>
                                 <td class="px-4 py-3"></td>
                                 <td class="px-4 py-3"></td>
@@ -507,7 +509,7 @@
                                     labels: @js($this->costBreakdown->pluck('user')->map->fullName()),
                                     data: @js($this->costBreakdown->pluck('amountCents')->map(fn ($cents) => $cents / 100)),
                                     colors: @js($this->costBreakdown->pluck('slot')->map($breakdownColor)),
-                                    valuePrefix: '$',
+                                    valuePrefix: @js(($trip->currency ?? Currency::default())->symbol()),
                                 })"
                             >
                                 <canvas x-ref="canvas"></canvas>
@@ -517,7 +519,7 @@
                                     <div class="flex items-center gap-2">
                                         <span class="h-3 w-3 rounded-full shrink-0" style="background-color: {{ $breakdownColor($row['slot']) }}"></span>
                                         <flux:text class="text-sm flex-1">{{ $row['user']->fullName() }}</flux:text>
-                                        <flux:text class="text-sm font-medium">${{ number_format($row['amountCents'] / 100, 2) }}</flux:text>
+                                        <flux:text class="text-sm font-medium">{{ Money::format($row['amountCents'], $trip->currency ?? Currency::default()) }}</flux:text>
                                     </div>
                                 @endforeach
                             </div>
@@ -679,9 +681,9 @@
                             <x-participant-avatar :name="$balance['user']->fullName()" :initials="$balance['user']->initials()" :color-slot="$trip->colorSlotFor($balance['user'])" size="sm" />
                             <flux:text class="text-sm">{{ $balance['user']->fullName() }}</flux:text>
                             @if ($balance['balanceCents'] > 0)
-                                <flux:badge color="green">{{ __('is owed') }} ${{ number_format($balance['balanceCents'] / 100, 2) }}</flux:badge>
+                                <flux:badge color="green">{{ __('is owed') }} {{ Money::format($balance['balanceCents'], $trip->currency ?? Currency::default()) }}</flux:badge>
                             @elseif ($balance['balanceCents'] < 0)
-                                <flux:badge color="red">{{ __('owes') }} ${{ number_format(abs($balance['balanceCents']) / 100, 2) }}</flux:badge>
+                                <flux:badge color="red">{{ __('owes') }} {{ Money::format(abs($balance['balanceCents']), $trip->currency ?? Currency::default()) }}</flux:badge>
                             @else
                                 <flux:badge>{{ __('Settled up') }}</flux:badge>
                             @endif
@@ -705,7 +707,7 @@
                                 <flux:text class="text-sm">{{ $transfer['to']->fullName() }}</flux:text>
                             </div>
                             <div class="ml-auto flex items-center gap-3">
-                                <flux:text class="font-semibold">${{ number_format($transfer['amountCents'] / 100, 2) }}</flux:text>
+                                <flux:text class="font-semibold">{{ Money::format($transfer['amountCents'], $trip->currency ?? Currency::default()) }}</flux:text>
                                 @if ($trip->user_id === Auth::id() || $transfer['from']->id === Auth::id() || $transfer['to']->id === Auth::id())
                                     <flux:button
                                         variant="ghost"
@@ -741,7 +743,7 @@
                                 <x-participant-avatar :name="$settlement['to']->fullName()" :initials="$settlement['to']->initials()" :color-slot="$trip->colorSlotFor($settlement['to'])" size="sm" />
                                 <flux:text class="text-sm">{{ $settlement['to']->fullName() }}</flux:text>
                             </div>
-                            <flux:text class="ml-auto text-sm">${{ number_format($settlement['amountCents'] / 100, 2) }}</flux:text>
+                            <flux:text class="ml-auto text-sm">{{ Money::format($settlement['amountCents'], $trip->currency ?? Currency::default()) }}</flux:text>
                             <flux:badge color="green" size="sm">{{ __('Settled') }}</flux:badge>
                         </div>
                     @endforeach
@@ -994,10 +996,41 @@
                 </flux:field>
             </div>
 
+            <div class="grid gap-6 md:grid-cols-2">
+                <flux:field>
+                    <flux:select wire:model.live="editingExpense.currency" :label="__('Currency')" required>
+                        @foreach (\App\Enums\Currency::cases() as $currencyOption)
+                            <option value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+
+                @php
+                    $editingExpenseCurrency = ($editingExpense['currency'] ?? '') ?: ($trip->currency ?? Currency::default())->value;
+                @endphp
+
+                @if ($editingExpenseCurrency !== $trip->currency?->value)
+                    <flux:field>
+                        <flux:input
+                            wire:model="editingExpense.exchange_rate"
+                            type="number"
+                            step="0.000001"
+                            :label="__('Exchange rate to :currency', ['currency' => $trip->currency->value])"
+                            :description="__('1 :from = ___ :to', ['from' => $editingExpenseCurrency, 'to' => $trip->currency->value])"
+                            required
+                        />
+                    </flux:field>
+                @endif
+            </div>
+
+            @php
+                $editCurrencySymbol = Currency::from($editingExpenseCurrency)->symbol();
+            @endphp
+
             @if (isset($editingExpense['unit_price']) && isset($editingExpense['quantity']) && is_numeric($editingExpense['unit_price']))
                 <flux:callout variant="subtle" class="bg-neutral-700/30">
                     <flux:text>
-                        <strong>{{ __('Total') }}:</strong> ${{ number_format((float) $editingExpense['unit_price'] * (int) $editingExpense['quantity'], 2) }}
+                        <strong>{{ __('Total') }}:</strong> {{ $editCurrencySymbol }}{{ number_format((float) $editingExpense['unit_price'] * (int) $editingExpense['quantity'], 2) }}
                     </flux:text>
                 </flux:callout>
             @endif
@@ -1078,7 +1111,7 @@
                                 type="number"
                                 step="0.01"
                                 class="w-28"
-                                prefix="$"
+                                :prefix="$editCurrencySymbol"
                             />
                         </div>
                     @endforeach
@@ -1087,7 +1120,7 @@
                         $editFixedTotal = (is_numeric($editingExpense['unit_price'] ?? null) ? (float) $editingExpense['unit_price'] : 0) * (int) ($editingExpense['quantity'] ?? 0);
                     @endphp
                     <flux:text class="text-sm {{ abs($editFixedSum - $editFixedTotal) < 0.005 ? 'text-green-500' : 'text-red-500' }}">
-                        ${{ number_format($editFixedSum, 2) }} / ${{ number_format($editFixedTotal, 2) }}
+                        {{ $editCurrencySymbol }}{{ number_format($editFixedSum, 2) }} / {{ $editCurrencySymbol }}{{ number_format($editFixedTotal, 2) }}
                     </flux:text>
                     @error('fixed_amounts')
                         <flux:error>{{ $message }}</flux:error>

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\User;
+use App\Enums\Currency;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -28,6 +29,7 @@ class TripFactory extends Factory
             'description' => fake()->paragraph(),
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'currency' => Currency::default()->value,
         ];
     }
 }

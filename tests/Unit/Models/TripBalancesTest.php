@@ -2,6 +2,7 @@
 
 use App\Models\Trip;
 use App\Models\User;
+use App\Enums\Currency;
 use App\Models\Expense;
 use App\Enums\ExpenseSplitType;
 
@@ -136,6 +137,57 @@ test('a recorded settlement nets out of both parties balances', function () {
 
     expect($balances->get($owner->id))->toBe(0)
         ->and($balances->get($participant->id))->toBe(0);
+});
+
+test('an expense in a different currency is converted to the trip\'s currency before netting', function () {
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $trip->participants()->attach($participant->id);
+
+    // 20.00 EUR at a 1.1 rate to USD = 22.00 USD (2200 cents).
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'unit_price' => 20.00,
+        'quantity' => 1,
+        'currency' => Currency::EUR->value,
+        'exchange_rate' => '1.1',
+    ]);
+    $expense->shares()->createMany([
+        ['user_id' => $owner->id, 'amount' => 10.00],
+        ['user_id' => $participant->id, 'amount' => 10.00],
+    ]);
+
+    $balances = tripWithLoadedExpenses($trip)->balances();
+
+    expect($balances->get($owner->id))->toBe(1100)
+        ->and($balances->get($participant->id))->toBe(-1100);
+});
+
+test('an expense in the trip\'s own currency (null exchange rate) nets at face value', function () {
+    $owner = User::factory()->create();
+    $participant = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $trip->participants()->attach($participant->id);
+
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $owner->id,
+        'unit_price' => 20.00,
+        'quantity' => 1,
+        'currency' => Currency::USD->value,
+        'exchange_rate' => null,
+    ]);
+    $expense->shares()->createMany([
+        ['user_id' => $owner->id, 'amount' => 10.00],
+        ['user_id' => $participant->id, 'amount' => 10.00],
+    ]);
+
+    $balances = tripWithLoadedExpenses($trip)->balances();
+
+    expect($balances->get($owner->id))->toBe(1000)
+        ->and($balances->get($participant->id))->toBe(-1000);
 });
 
 test('a partial settlement leaves the remaining balance', function () {

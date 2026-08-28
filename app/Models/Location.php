@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Currency;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -22,6 +23,7 @@ class Location extends Model
     protected $fillable = [
         'name',
         'price',
+        'currency',
         'latitude',
         'longitude',
         'link',
@@ -40,6 +42,7 @@ class Location extends Model
     {
         return [
             'price' => 'decimal:2',
+            'currency' => Currency::class,
             'latitude' => 'decimal:8',
             'longitude' => 'decimal:8',
             'accepted' => 'boolean',

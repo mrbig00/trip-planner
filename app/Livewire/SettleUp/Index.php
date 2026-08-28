@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Livewire\SettleUp;
 
-use App\Actions\Expenses\BuildBalanceSummary;
 use App\Models\Trip;
 use App\Models\User;
+use App\Enums\Currency;
+use Livewire\Component;
+use Illuminate\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View;
-use Livewire\Component;
+use App\Actions\Expenses\BuildBalanceSummary;
 
 class Index extends Component
 {
@@ -29,26 +30,30 @@ class Index extends Component
 
     /**
      * Net every member's balance across all of the given trips combined,
-     * keyed by user_id => signed cents. Summing a person's balance here
-     * across all their trips always matches summing their balance on each
-     * trip's own detail page, since this is literally the same per-trip
-     * `Trip::balances()` figures added together — not re-derived some other
-     * way.
+     * grouped by each trip's own currency (different trips can use different
+     * currencies — summing across them would otherwise silently add, say,
+     * USD and EUR as if they were equal). Within a currency group, summing a
+     * person's balance here across all their trips in that currency always
+     * matches summing their balance on each trip's own detail page, since
+     * this is literally the same per-trip `Trip::balances()` figures added
+     * together — not re-derived some other way.
      *
      * @param  Collection<int, Trip>  $trips
-     * @return Collection<int, int>
+     * @return Collection<string, Collection<int, int>> currency code => (user_id => signed cents)
      */
-    private function combinedBalances(Collection $trips): Collection
+    private function combinedBalancesByCurrency(Collection $trips): Collection
     {
         $totals = [];
 
         foreach ($trips as $trip) {
+            $currency = ($trip->currency ?? Currency::default())->value;
+
             foreach ($trip->balances() as $userId => $cents) {
-                $totals[$userId] = ($totals[$userId] ?? 0) + $cents;
+                $totals[$currency][$userId] = ($totals[$currency][$userId] ?? 0) + $cents;
             }
         }
 
-        return collect($totals);
+        return collect($totals)->map(fn (array $perUser) => collect($perUser));
     }
 
     /**
@@ -57,16 +62,25 @@ class Index extends Component
     public function render(): View
     {
         $trips = $this->trips();
-        $balancesInCents = $this->combinedBalances($trips);
-        $users = User::query()->whereIn('id', $balancesInCents->keys())->get()->keyBy('id');
+        $balancesByCurrency = $this->combinedBalancesByCurrency($trips);
 
-        $summary = app(BuildBalanceSummary::class)->build($balancesInCents, $users);
+        $allUserIds = $balancesByCurrency->flatMap(fn (Collection $balances) => $balances->keys())->unique();
+        $users = User::query()->whereIn('id', $allUserIds)->get()->keyBy('id');
+
+        $groups = $balancesByCurrency->map(function (Collection $balancesInCents, string $currency) use ($users) {
+            $summary = app(BuildBalanceSummary::class)->build($balancesInCents, $users);
+
+            return [
+                'currency' => $currency,
+                'balances' => $summary['balances']->sortByDesc('balanceCents')->values(),
+                'transfers' => $summary['transfers'],
+            ];
+        })->sortKeys()->values();
 
         return view('livewire.settle-up.index', [
             'title' => __('Settle Up'),
             'tripCount' => $trips->count(),
-            'balances' => $summary['balances']->sortByDesc('balanceCents')->values(),
-            'transfers' => $summary['transfers'],
+            'groups' => $groups,
         ]);
     }
 }

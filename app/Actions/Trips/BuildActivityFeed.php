@@ -3,6 +3,8 @@
 namespace App\Actions\Trips;
 
 use App\Models\Trip;
+use App\Support\Money;
+use App\Enums\Currency;
 use Illuminate\Support\Collection;
 
 class BuildActivityFeed
@@ -92,15 +94,15 @@ class BuildActivityFeed
         }
 
         foreach ($trip->expenses as $expense) {
-            $amount = number_format($expense->total, 2);
+            $amount = Money::formatDecimal((string) $expense->total, $expense->currency ?? $trip->currency ?? Currency::default());
 
             $events->push([
                 'type' => 'expense',
                 'at' => $expense->created_at,
                 'user' => $expense->owner,
                 'text' => $expense->owner
-                    ? __(':user added expense :expense ($:amount)', ['user' => $expense->owner->fullName(), 'expense' => $expense->name, 'amount' => $amount])
-                    : __('Expense added: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                    ? __(':user added expense :expense (:amount)', ['user' => $expense->owner->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense added: :expense (:amount)', ['expense' => $expense->name, 'amount' => $amount]),
             ]);
 
             // updated_by is only ever set by saveExpense(), never on creation,
@@ -112,14 +114,14 @@ class BuildActivityFeed
                     'at' => $expense->updated_at,
                     'user' => $editor,
                     'text' => $editor
-                        ? __(':user edited expense :expense ($:amount)', ['user' => $editor->fullName(), 'expense' => $expense->name, 'amount' => $amount])
-                        : __('Expense edited: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                        ? __(':user edited expense :expense (:amount)', ['user' => $editor->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                        : __('Expense edited: :expense (:amount)', ['expense' => $expense->name, 'amount' => $amount]),
                 ]);
             }
         }
 
         foreach ($trashedExpenses ?? $trip->expenses()->onlyTrashed()->get() as $expense) {
-            $amount = number_format($expense->total, 2);
+            $amount = Money::formatDecimal((string) $expense->total, $expense->currency ?? $trip->currency ?? Currency::default());
             $deleter = $members->get($expense->deleted_by);
 
             $events->push([
@@ -127,8 +129,8 @@ class BuildActivityFeed
                 'at' => $expense->deleted_at,
                 'user' => $deleter,
                 'text' => $deleter
-                    ? __(':user deleted expense :expense ($:amount)', ['user' => $deleter->fullName(), 'expense' => $expense->name, 'amount' => $amount])
-                    : __('Expense deleted: :expense ($:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                    ? __(':user deleted expense :expense (:amount)', ['user' => $deleter->fullName(), 'expense' => $expense->name, 'amount' => $amount])
+                    : __('Expense deleted: :expense (:amount)', ['expense' => $expense->name, 'amount' => $amount]),
             ]);
         }
 
@@ -141,9 +143,9 @@ class BuildActivityFeed
                     'type' => 'settlement',
                     'at' => $settlement->created_at,
                     'user' => $from,
-                    'text' => __(':from settled $:amount with :to', [
+                    'text' => __(':from settled :amount with :to', [
                         'from' => $from->fullName(),
-                        'amount' => number_format($settlement->amount_cents / 100, 2),
+                        'amount' => Money::format($settlement->amount_cents, $trip->currency ?? Currency::default()),
                         'to' => $to->fullName(),
                     ]),
                 ]);
