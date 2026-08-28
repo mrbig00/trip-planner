@@ -252,7 +252,7 @@ function injectStyles() {
         .ga-consent-reopen {
             position: fixed;
             z-index: 2147483000;
-            left: 1rem;
+            right: 1rem;
             bottom: 1rem;
             background: #18181b;
             color: #a1a1aa;
