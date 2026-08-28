@@ -3,7 +3,7 @@
   "name": "trip-planner/trip-planner",
   "type": "project",
   "description": "Trip Planner.",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "keywords": [
     "laravel",
     "framework"
