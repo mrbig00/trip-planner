@@ -20,12 +20,12 @@
     $topLeftX = $world['x'] - $width / 2;
     $topLeftY = $world['y'] - $height / 2;
 
-    $osmUrl = "https://www.openstreetmap.org/?mlat={$lat}&mlon={$lon}#map={$zoom}/{$lat}/{$lon}";
+    $mapUrl = "https://www.google.com/maps/search/?api=1&query={$lat},{$lon}";
     $coords = number_format($lat, 6).', '.number_format($lon, 6);
 @endphp
 
 <a
-    href="{{ $osmUrl }}"
+    href="{{ $mapUrl }}"
     target="_blank"
     rel="noopener"
     title="{{ $coords }}"
