@@ -1,0 +1,94 @@
+# Reusable off-cluster trip documents backup.
+#
+# Archives the trip-documents-storage PVC (kubernetes/app.yaml, mounted at
+# /var/www/html/storage/app/private/documents in the trip-planner deployment's
+# laravel container — see App\Models\TripDocument / config/documents.php) via
+# kubectl exec — same access already granted to the CI service account in
+# kubernetes/ci-rbac.yaml — zips it, and uploads it to the same Backblaze B2
+# bucket used for database backups, under its own prefix. Backups older than
+# RETENTION_DAYS are pruned at the end of every run, so the prefix only ever
+# holds a 10-day rolling window without depending on a lifecycle rule
+# configured out-of-band on the bucket itself.
+#
+# `workflow_call` makes this the single source of the backup steps, mirroring
+# backup-database.yml: it runs on its own nightly schedule below, and
+# deploy.yml also calls it as a pre-deploy safety net.
+#
+# Uses the same B2 secrets/variables as backup-database.yml (B2_KEY_ID,
+# B2_APPLICATION_KEY, B2_BUCKET, B2_ENDPOINT, B2_REGION) — no extra setup
+# needed. KUBE_CONFIG is also shared with deploy.yml.
+
+name: Backup Trip Documents
+
+on:
+  schedule:
+    - cron: '30 3 * * *' # 03:30 UTC daily, after the database backup
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: backup-documents
+  cancel-in-progress: false
+
+env:
+  K8S_NAMESPACE: default
+  BACKUP_PREFIX: trip-documents
+  RETENTION_DAYS: 10
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Archive trip documents
+        run: |
+          kubectl exec -n "$K8S_NAMESPACE" deployment/trip-planner -c laravel -- \
+            tar cf - -C /var/www/html/storage/app/private documents \
+            > documents.tar
+
+      - name: Zip backup
+        run: |
+          tar xf documents.tar
+          zip -r backup.zip documents
+
+      - name: Upload backup to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.B2_REGION }}
+        run: |
+          timestamp=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          key="${BACKUP_PREFIX}/backup-${timestamp}.zip"
+          aws s3 cp backup.zip "s3://${{ vars.B2_BUCKET }}/${key}" \
+            --endpoint-url "${{ vars.B2_ENDPOINT }}"
+
+      - name: Prune backups older than retention period
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.B2_REGION }}
+        run: |
+          cutoff_epoch=$(date -u -d "-${RETENTION_DAYS} days" +%s)
+
+          aws s3api list-objects-v2 \
+            --bucket "${{ vars.B2_BUCKET }}" \
+            --prefix "${BACKUP_PREFIX}/" \
+            --endpoint-url "${{ vars.B2_ENDPOINT }}" \
+            --query 'Contents[].[Key,LastModified]' \
+            --output text |
+          while IFS=$'\t' read -r object_key last_modified; do
+            [ -z "$object_key" ] || [ "$object_key" = "None" ] && continue
+            modified_epoch=$(date -u -d "$last_modified" +%s)
+            if [ "$modified_epoch" -lt "$cutoff_epoch" ]; then
+              echo "Deleting $object_key (last modified $last_modified)"
+              aws s3 rm "s3://${{ vars.B2_BUCKET }}/${object_key}" \
+                --endpoint-url "${{ vars.B2_ENDPOINT }}"
+            fi
+          done

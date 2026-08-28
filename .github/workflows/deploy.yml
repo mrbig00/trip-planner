@@ -31,14 +31,19 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
-  # Pre-deploy safety net: same backup steps as the nightly schedule in
-  # backup-database.yml, called via workflow_call so they're defined once.
+  # Pre-deploy safety net: same backup steps as the nightly schedules in
+  # backup-database.yml / backup-documents.yml, called via workflow_call so
+  # they're defined once.
   backup:
     uses: ./.github/workflows/backup-database.yml
     secrets: inherit
 
+  backup-documents:
+    uses: ./.github/workflows/backup-documents.yml
+    secrets: inherit
+
   deploy:
-    needs: [build, backup]
+    needs: [build, backup, backup-documents]
     runs-on: ubuntu-latest
     environment: production
     steps:
