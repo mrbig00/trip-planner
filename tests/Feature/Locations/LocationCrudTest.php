@@ -1,9 +1,10 @@
 <?php
 
-use App\Models\Location;
 use App\Models\Trip;
 use App\Models\User;
+use App\Enums\Currency;
 use Livewire\Volt\Volt;
+use App\Models\Location;
 
 test('guests cannot access location create', function () {
     $trip = Trip::factory()->create();
@@ -187,4 +188,42 @@ test('owner can update a location', function () {
         ->assertDispatched('analytics-event', name: 'location_updated');
 
     expect($location->fresh()->name)->toBe('New Name');
+});
+
+test('create mount defaults currency to the trip\'s currency', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::EUR->value]);
+    $this->actingAs($owner);
+
+    Volt::test('locations.create', ['trip' => $trip])
+        ->assertSet('currency', Currency::EUR->value);
+});
+
+test('a location persists its own currency', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $this->actingAs($owner);
+
+    Volt::test('locations.create', ['trip' => $trip])
+        ->set('name', 'Paris')
+        ->set('price', '150.50')
+        ->set('currency', Currency::EUR->value)
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $location = Location::where('name', 'Paris')->first();
+    expect($location->currency)->toBe(Currency::EUR);
+});
+
+test('edit mount pre-fills the location\'s own currency', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id, 'currency' => Currency::USD->value]);
+    $location = Location::factory()->create([
+        'trip_id' => $trip->id,
+        'currency' => Currency::GBP->value,
+    ]);
+    $this->actingAs($owner);
+
+    Volt::test('locations.edit', ['trip' => $trip, 'location' => $location])
+        ->assertSet('currency', Currency::GBP->value);
 });

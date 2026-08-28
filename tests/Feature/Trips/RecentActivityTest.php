@@ -89,7 +89,8 @@ test('recent activity shows the amount on an added expense and adds an edited ev
     $component->set('editingExpense', [
         'name' => 'Hotel', 'description' => '', 'link' => '',
         'unit_price' => '150', 'quantity' => 1, 'user_id' => $owner->id,
-        'split_type' => 'equal', 'participant_ids' => [$owner->id],
+        'split_type' => 'equal', 'currency' => $trip->currency->value, 'exchange_rate' => null,
+        'participant_ids' => [$owner->id],
         'percentages' => [], 'fixed_amounts' => [],
     ])->call('saveExpense', $expense->id);
 

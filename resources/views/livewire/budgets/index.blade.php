@@ -32,18 +32,19 @@
                         </div>
 
                         @if ($summary = $trip->budget_summary)
+                            @php $currency = $trip->currency ?? \App\Enums\Currency::default(); @endphp
                             <div class="shrink-0 text-right">
                                 @if ($summary['overBudget'])
                                     <flux:text class="text-sm font-semibold text-red-400">
-                                        ${{ number_format(abs($summary['remaining']), 2) }} {{ __('over budget') }}
+                                        {{ \App\Support\Money::formatDecimal((string) abs($summary['remaining']), $currency) }} {{ __('over budget') }}
                                     </flux:text>
                                 @else
                                     <flux:text class="text-sm text-neutral-300">
-                                        ${{ number_format($summary['remaining'], 2) }} {{ __('remaining') }}
+                                        {{ \App\Support\Money::formatDecimal((string) $summary['remaining'], $currency) }} {{ __('remaining') }}
                                     </flux:text>
                                 @endif
                                 <flux:text class="mt-0.5 block text-xs text-neutral-500">
-                                    ${{ number_format($summary['spent'], 2) }} / ${{ number_format($summary['budget'], 2) }}
+                                    {{ \App\Support\Money::formatDecimal((string) $summary['spent'], $currency) }} / {{ \App\Support\Money::formatDecimal((string) $summary['budget'], $currency) }}
                                 </flux:text>
                             </div>
                         @else
@@ -67,7 +68,7 @@
                         </div>
                     @else
                         <flux:text class="mt-4 block text-xs text-neutral-500">
-                            {{ __('Spent so far') }}: ${{ number_format($trip->total_spent, 2) }}
+                            {{ __('Spent so far') }}: {{ \App\Support\Money::formatDecimal((string) $trip->total_spent, $trip->currency ?? \App\Enums\Currency::default()) }}
                         </flux:text>
                     @endif
                 </div>

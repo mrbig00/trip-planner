@@ -1,7 +1,9 @@
 <?php
 
 use App\Actions\Expenses\BuildExpenseShares;
+use App\Actions\Expenses\FetchExchangeRate;
 use App\Actions\Expenses\ValidateExpenseSplit;
+use App\Enums\Currency;
 use App\Enums\ExpenseSplitType;
 use App\Models\Expense;
 use App\Models\Trip;
@@ -31,6 +33,9 @@ new class extends Component {
     public array $percentages = [];
     public array $fixed_amounts = [];
 
+    public string $currency = '';
+    public ?string $exchange_rate = null;
+
     public function with(): array
     {
         return ['title' => __('Add Expense')];
@@ -48,6 +53,7 @@ new class extends Component {
         $this->trip = $trip->load(['participants', 'creator']);
         $this->user_id = Auth::id(); // Default to current user
         $this->participant_ids = $this->trip->members()->pluck('id')->all();
+        $this->currency = ($this->trip->currency ?? Currency::default())->value;
     }
 
     /**
@@ -55,6 +61,22 @@ new class extends Component {
      */
     public function updated(string $name): void
     {
+        if ($name === 'currency') {
+            // Best-effort convenience prefill, never trusted for the actual
+            // conversion — the user can always override it, and it's still
+            // validated as required at submit time (see store()). Left null
+            // (for the user to fill in by hand) whenever the currency
+            // matches the trip's own, is invalid (wire:model.live is a
+            // client-mutable property), the lookup fails, or the pair isn't
+            // available.
+            $selected = Currency::tryFrom($this->currency);
+            $tripCurrency = $this->trip->currency ?? Currency::default();
+
+            $this->exchange_rate = ($selected === null || $selected === $tripCurrency)
+                ? null
+                : app(FetchExchangeRate::class)->fetch($selected, $tripCurrency);
+        }
+
         if ($name === 'participant_ids' || $name === 'split_type') {
             $this->percentages = collect($this->percentages)->only($this->participant_ids)->all();
             $this->fixed_amounts = collect($this->fixed_amounts)->only($this->participant_ids)->all();
@@ -76,12 +98,24 @@ new class extends Component {
             'quantity' => ['required', 'integer', 'min:1'],
             'user_id' => ['required', 'exists:users,id', 'in:'.implode(',', $eligibleUserIds)],
             'split_type' => ['required', Rule::enum(ExpenseSplitType::class)],
+            'currency' => ['required', Rule::enum(Currency::class)],
+            'exchange_rate' => [
+                'nullable', 'numeric', 'min:0.000001',
+                'required_unless:currency,'.$this->trip->currency?->value,
+            ],
             'participant_ids' => ['required', 'array', 'min:1'],
             'participant_ids.*' => ['integer', 'in:'.implode(',', $eligibleUserIds), 'distinct'],
         ]);
 
         $splitType = ExpenseSplitType::from($validated['split_type']);
         $totalCents = (int) bcmul(bcmul((string) $validated['unit_price'], '100', 0), (string) $validated['quantity'], 0);
+
+        // A same-currency expense never carries a rate, regardless of what a
+        // stale/hidden field might have posted — null is the one meaning
+        // "same as the trip's currency" everywhere else reads it.
+        $exchangeRate = $validated['currency'] === $this->trip->currency?->value
+            ? null
+            : $validated['exchange_rate'];
 
         app(ValidateExpenseSplit::class)->validate(
             $splitType,
@@ -91,7 +125,7 @@ new class extends Component {
             $totalCents
         );
 
-        DB::transaction(function () use ($validated, $splitType, $totalCents) {
+        DB::transaction(function () use ($validated, $splitType, $totalCents, $exchangeRate) {
             $expense = $this->trip->expenses()->create([
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -100,6 +134,8 @@ new class extends Component {
                 'quantity' => $validated['quantity'],
                 'user_id' => $validated['user_id'],
                 'split_type' => $splitType->value,
+                'currency' => $validated['currency'],
+                'exchange_rate' => $exchangeRate,
             ]);
 
             $expense->shares()->createMany(
@@ -195,6 +231,37 @@ new class extends Component {
                 </flux:select>
             </flux:field>
 
+            <div class="grid gap-6 md:grid-cols-2">
+                <flux:field>
+                    <flux:select wire:model.live="currency" :label="__('Currency')" required>
+                        @foreach (\App\Enums\Currency::cases() as $currencyOption)
+                            <option wire:key="currency-{{ $currencyOption->value }}" value="{{ $currencyOption->value }}">{{ $currencyOption->label() }}</option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+
+                @if ($currency !== $trip->currency?->value)
+                    <flux:field>
+                        <flux:input
+                            wire:model="exchange_rate"
+                            type="number"
+                            step="0.000001"
+                            :label="__('Exchange rate to :currency', ['currency' => $trip->currency->value])"
+                            :description="__('1 :from = ___ :to', ['from' => $currency, 'to' => $trip->currency->value])"
+                            required
+                        />
+                        <div wire:loading wire:target="currency">
+                            <flux:text class="text-xs text-neutral-400 mt-1">{{ __("Looking up today's rate…") }}</flux:text>
+                        </div>
+                        @if (! $exchange_rate)
+                            <flux:text class="text-xs text-neutral-500 mt-1" wire:loading.remove wire:target="currency">
+                                {{ __("Couldn't find today's rate automatically — enter it yourself.") }}
+                            </flux:text>
+                        @endif
+                    </flux:field>
+                @endif
+            </div>
+
             <flux:separator />
 
             <flux:checkbox.group wire:model.live="participant_ids" :label="__('Split between')">
@@ -216,6 +283,11 @@ new class extends Component {
 
             @php
                 $selectedMembers = $trip->members()->whereIn('id', $participant_ids);
+                // wire:model.live means $currency is a client-mutable public
+                // property — tryFrom() with a fallback avoids a ValueError if
+                // it's ever tampered with into something other than a real
+                // currency code.
+                $currencySymbol = (\App\Enums\Currency::tryFrom($currency) ?? \App\Enums\Currency::default())->symbol();
             @endphp
 
             @if ($split_type === 'percentage')
@@ -252,7 +324,7 @@ new class extends Component {
                                 type="number"
                                 step="0.01"
                                 class="w-28"
-                                prefix="$"
+                                :prefix="$currencySymbol"
                             />
                         </div>
                     @endforeach
@@ -261,7 +333,7 @@ new class extends Component {
                         $fixedTotal = (is_numeric($unit_price) ? (float) $unit_price : 0) * $quantity;
                     @endphp
                     <flux:text class="text-sm {{ abs($fixedSum - $fixedTotal) < 0.005 ? 'text-green-500' : 'text-red-500' }}">
-                        ${{ number_format($fixedSum, 2) }} / ${{ number_format($fixedTotal, 2) }}
+                        {{ $currencySymbol }}{{ number_format($fixedSum, 2) }} / {{ $currencySymbol }}{{ number_format($fixedTotal, 2) }}
                     </flux:text>
                     @error('fixed_amounts')
                         <flux:error>{{ $message }}</flux:error>
@@ -276,7 +348,7 @@ new class extends Component {
             @if ($name && $unit_price && $quantity)
                 <flux:callout variant="subtle" class="bg-neutral-700/30">
                     <flux:text>
-                        <strong>{{ __('Total') }}:</strong> ${{ number_format((float) $unit_price * $quantity, 2) }}
+                        <strong>{{ __('Total') }}:</strong> {{ $currencySymbol }}{{ number_format((float) $unit_price * $quantity, 2) }}
                     </flux:text>
                 </flux:callout>
             @endif

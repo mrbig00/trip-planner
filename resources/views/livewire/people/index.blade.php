@@ -1,4 +1,4 @@
-@php use Illuminate\Support\Str; @endphp
+@php use Illuminate\Support\Str; use App\Support\Money; @endphp
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
     <div>
@@ -36,17 +36,24 @@
                             </div>
                         </div>
 
+                        @php
+                            $nonZero = collect($companion['netCentsByCurrency'])->filter(fn ($cents) => $cents !== 0);
+                        @endphp
                         <div class="shrink-0 text-right">
-                            @if ($companion['netCents'] > 0)
-                                <flux:text class="text-sm font-semibold text-green-400">
-                                    ${{ number_format($companion['netCents'] / 100, 2) }} {{ __('owed to you') }}
-                                </flux:text>
-                            @elseif ($companion['netCents'] < 0)
-                                <flux:text class="text-sm font-semibold text-red-400">
-                                    ${{ number_format(abs($companion['netCents']) / 100, 2) }} {{ __('you owe') }}
-                                </flux:text>
-                            @else
+                            @if ($nonZero->isEmpty())
                                 <flux:text class="text-sm text-neutral-400">{{ __('Settled up') }}</flux:text>
+                            @else
+                                @foreach ($nonZero as $currency => $netCents)
+                                    @if ($netCents > 0)
+                                        <flux:text class="block text-sm font-semibold text-green-400">
+                                            {{ Money::format($netCents, $currency) }} {{ __('owed to you') }}
+                                        </flux:text>
+                                    @else
+                                        <flux:text class="block text-sm font-semibold text-red-400">
+                                            {{ Money::format(abs($netCents), $currency) }} {{ __('you owe') }}
+                                        </flux:text>
+                                    @endif
+                                @endforeach
                             @endif
                         </div>
                     </div>

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Money;
+use App\Enums\Currency;
 use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,6 +41,7 @@ class Trip extends Model
         'start_date',
         'end_date',
         'budget',
+        'currency',
     ];
 
     /**
@@ -53,6 +55,7 @@ class Trip extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'budget' => 'decimal:2',
+            'currency' => Currency::class,
         ];
     }
 
@@ -181,11 +184,20 @@ class Trip extends Model
     }
 
     /**
-     * Calculate each member's balance in integer cents: positive means the
-     * member is owed money, negative means the member owes money. Requires
-     * `expenses.shares` to be eager-loaded. Nets out recorded settlements, so
-     * this always reflects who owes whom *right now*, not the gross figure
-     * before anyone paid anyone back.
+     * Calculate each member's balance in integer cents, in this trip's own
+     * currency: positive means the member is owed money, negative means the
+     * member owes money. Requires `expenses.shares` to be eager-loaded. Nets
+     * out recorded settlements, so this always reflects who owes whom *right
+     * now*, not the gross figure before anyone paid anyone back.
+     *
+     * Expenses may be recorded in a different currency than the trip's — each
+     * expense converts its own total/shares into the trip's currency via its
+     * exchange_rate before being netted here, so this always returns a
+     * single-currency figure. Shares are converted together via
+     * Expense::convertedShareCentsByUserId(), not individually, so their sum
+     * always matches converted_total_cents exactly — converting each share
+     * on its own can drift by a cent or two from independent truncation,
+     * which would otherwise silently break the zero-sum invariant below.
      */
     public function balances(): Collection
     {
@@ -193,12 +205,12 @@ class Trip extends Model
 
         foreach ($this->expenses as $expense) {
             if ($expense->user_id && $balances->has($expense->user_id)) {
-                $balances[$expense->user_id] += $expense->total_in_cents;
+                $balances[$expense->user_id] += $expense->converted_total_cents;
             }
 
-            foreach ($expense->shares as $share) {
-                if ($balances->has($share->user_id)) {
-                    $balances[$share->user_id] -= Money::toCents((string) $share->amount);
+            foreach ($expense->convertedShareCentsByUserId() as $userId => $cents) {
+                if ($balances->has($userId)) {
+                    $balances[$userId] -= $cents;
                 }
             }
         }
@@ -219,12 +231,16 @@ class Trip extends Model
     }
 
     /**
-     * Get the trip's total spend across all expenses. Requires `expenses` to
-     * be eager-loaded to avoid N+1s.
+     * Get the trip's total spend across all expenses, converted into the
+     * trip's own currency (see Expense::convertToTripCurrencyCents()) so
+     * expenses recorded in a different currency are still commensurable.
+     * Requires `expenses` to be eager-loaded to avoid N+1s.
      */
     public function getTotalSpentAttribute(): float
     {
-        return (float) $this->expenses->sum('total');
+        return (float) Money::fromCents(
+            $this->expenses->sum(fn (Expense $expense) => $expense->converted_total_cents)
+        );
     }
 
     /**

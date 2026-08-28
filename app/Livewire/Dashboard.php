@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Livewire;
 
 use App\Models\Trip;
+use App\Enums\Currency;
+use App\Models\Expense;
 use Livewire\Component;
 use App\Models\Location;
 use Illuminate\Support\Carbon;
@@ -91,10 +93,35 @@ class Dashboard extends Component
         return [
             'totalTrips' => $trips->count(),
             'upcomingTrips' => $upcomingTrips->count(),
-            'totalSpend' => $trips->flatMap->expenses->sum('total'),
+            'totalSpendByCurrency' => $this->totalSpendByCurrency($trips),
             'acceptedDestinations' => $locations->where('accepted', true)->count(),
             'proposedDestinations' => $locations->where('accepted', false)->count(),
         ];
+    }
+
+    /**
+     * Total spend across every trip, grouped by each trip's own currency —
+     * different trips can use different currencies, so summing across them
+     * would otherwise silently add, say, USD and EUR as if they were equal.
+     *
+     * @param  Collection<int, Trip>  $trips
+     * @return array<string, float> currency code => total spend
+     */
+    private function totalSpendByCurrency(Collection $trips): array
+    {
+        $totals = [];
+
+        foreach ($trips as $trip) {
+            if ($trip->expenses->isEmpty()) {
+                continue;
+            }
+
+            $currency = ($trip->currency ?? Currency::default())->value;
+            $totals[$currency] = ($totals[$currency] ?? 0)
+                + $trip->expenses->sum(fn (Expense $expense) => $expense->converted_total_cents) / 100;
+        }
+
+        return $totals;
     }
 
     /**
@@ -116,26 +143,33 @@ class Dashboard extends Component
     }
 
     /**
-     * Total spend for the trips with the highest expenses.
+     * Total spend for the trips with the highest expenses, each trip's total
+     * in its own currency (see Trip::getTotalSpentAttribute()). Trips in
+     * different currencies aren't comparable on one shared bar-chart scale
+     * (bar length would imply a magnitude that annotating the label alone
+     * can't fix), so this ranks the top 8 separately *within* each currency
+     * and returns one series per currency — the view renders one chart
+     * instance per series.
      *
      * @param  Collection<int, Trip>  $trips
-     * @return array{labels: array<int, string>, data: array<int, float>}
+     * @return array<string, array{labels: array<int, string>, data: array<int, float>}> currency code => chart series
      */
     private function spendByTrip(Collection $trips): array
     {
-        $ranked = $trips
+        return $trips
             ->map(fn (Trip $trip) => [
+                'currency' => ($trip->currency ?? Currency::default())->value,
                 'name' => $trip->name,
-                'total' => (float) $trip->expenses->sum('total'),
+                'total' => $trip->total_spent,
             ])
             ->filter(fn (array $trip) => $trip['total'] > 0)
-            ->sortByDesc('total')
-            ->take(8)
-            ->values();
-
-        return [
-            'labels' => $ranked->pluck('name')->all(),
-            'data' => $ranked->pluck('total')->all(),
-        ];
+            ->groupBy('currency')
+            ->map(fn (\Illuminate\Support\Collection $group) => $group->sortByDesc('total')->take(8)->values())
+            ->sortKeys()
+            ->map(fn (\Illuminate\Support\Collection $ranked) => [
+                'labels' => $ranked->pluck('name')->all(),
+                'data' => $ranked->pluck('total')->all(),
+            ])
+            ->all();
     }
 }
