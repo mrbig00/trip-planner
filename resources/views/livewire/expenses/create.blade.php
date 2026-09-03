@@ -46,11 +46,13 @@ new class extends Component {
      */
     public function mount(Trip $trip): void
     {
-        if ($trip->user_id !== Auth::id()) {
+        $trip->load(['participants', 'creator']);
+
+        if ($trip->user_id !== Auth::id() && ! $trip->participants->contains(Auth::id())) {
             abort(403);
         }
 
-        $this->trip = $trip->load(['participants', 'creator']);
+        $this->trip = $trip;
         $this->user_id = Auth::id(); // Default to current user
         $this->participant_ids = $this->trip->members()->pluck('id')->all();
         $this->currency = ($this->trip->currency ?? Currency::default())->value;
@@ -133,6 +135,7 @@ new class extends Component {
                 'unit_price' => $validated['unit_price'],
                 'quantity' => $validated['quantity'],
                 'user_id' => $validated['user_id'],
+                'created_by' => Auth::id(),
                 'split_type' => $splitType->value,
                 'currency' => $validated['currency'],
                 'exchange_rate' => $exchangeRate,
@@ -229,6 +232,11 @@ new class extends Component {
                         <option value="{{ $participant->id }}">{{ $participant->fullName() }}</option>
                     @endforeach
                 </flux:select>
+                @if ($user_id && $user_id !== Auth::id())
+                    <flux:text class="text-sm text-neutral-400 mt-1">
+                        {{ __("You're adding this expense on behalf of :name.", ['name' => $trip->members()->firstWhere('id', $user_id)?->fullName()]) }}
+                    </flux:text>
+                @endif
             </flux:field>
 
             <div class="grid gap-6 md:grid-cols-2">

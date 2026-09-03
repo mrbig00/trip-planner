@@ -388,7 +388,7 @@
                             @foreach ($trip->expenses as $expense)
                                 <tr wire:key="expense-{{ $expense->id }}" class="border-b border-neutral-700/50 hover:bg-neutral-800/30 transition-colors">
                                     @php
-                                        $canEditExpense = $expense->user_id === Auth::id() || $trip->user_id === Auth::id();
+                                        $canEditExpense = $this->canManageExpense($expense);
                                     @endphp
                                     <td class="px-4 py-3">
                                         <flux:text class="font-medium">{{ $expense->name }}</flux:text>
@@ -428,6 +428,11 @@
                                                 />
                                                 <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
                                             </div>
+                                            @if ($expense->createdBy && $expense->created_by !== $expense->user_id)
+                                                <flux:text class="text-xs text-neutral-500 mt-0.5">
+                                                    {{ __('Added by :name', ['name' => $expense->createdBy->fullName()]) }}
+                                                </flux:text>
+                                            @endif
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -1058,6 +1063,11 @@
                         <option value="{{ $participant->id }}">{{ $participant->fullName() }}</option>
                     @endforeach
                 </flux:select>
+                @if (($editingExpense['user_id'] ?? null) && $editingExpense['user_id'] !== Auth::id())
+                    <flux:text class="text-sm text-neutral-400 mt-1">
+                        {{ __("You're editing this expense on behalf of :name.", ['name' => $trip->members()->firstWhere('id', $editingExpense['user_id'])?->fullName()]) }}
+                    </flux:text>
+                @endif
             </flux:field>
 
             <flux:separator />

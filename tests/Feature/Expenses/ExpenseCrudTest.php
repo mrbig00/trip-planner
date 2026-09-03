@@ -14,12 +14,20 @@ test('guests cannot access expense create', function () {
     $response->assertRedirect(route('login'));
 });
 
-test('participants cannot access expense create (creator only)', function () {
+test('participants can access expense create', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
     $participant = User::factory()->create();
     $trip->participants()->attach($participant->id);
     $this->actingAs($participant);
+
+    $response = $this->get(route('expenses.create', $trip));
+    $response->assertOk();
+});
+
+test('an unaffiliated user cannot access expense create', function () {
+    $trip = Trip::factory()->create();
+    $this->actingAs(User::factory()->create());
 
     $response = $this->get(route('expenses.create', $trip));
     $response->assertForbidden();
@@ -83,6 +91,66 @@ test('expense creation accepts a participant as user_id', function () {
 
     $expense = Expense::where('name', 'Dinner')->first();
     expect($expense->user_id)->toBe($participant->id);
+});
+
+test('expense creation records the authenticated user as created_by', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Dinner')
+        ->set('unit_price', '20')
+        ->set('quantity', 2)
+        ->set('user_id', $owner->id)
+        ->call('store')
+        ->assertHasNoErrors();
+
+    $expense = Expense::where('name', 'Dinner')->first();
+    expect($expense->created_by)->toBe($owner->id);
+});
+
+test('a participant can add an expense on behalf of another participant', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    $this->actingAs($submitter);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Taxi')
+        ->set('unit_price', '15')
+        ->set('quantity', 1)
+        ->set('user_id', $beneficiary->id)
+        ->call('store')
+        ->assertRedirect(route('trips.show', $trip));
+
+    $expense = Expense::where('name', 'Taxi')->first();
+    expect($expense->user_id)->toBe($beneficiary->id)
+        ->and($expense->created_by)->toBe($submitter->id);
+});
+
+test('a participant can add an expense on behalf of the trip creator', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($participant);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->set('name', 'Groceries')
+        ->set('unit_price', '30')
+        ->set('quantity', 1)
+        ->set('user_id', $owner->id)
+        ->call('store')
+        ->assertRedirect(route('trips.show', $trip));
+
+    $expense = Expense::where('name', 'Groceries')->first();
+    expect($expense->user_id)->toBe($owner->id)
+        ->and($expense->created_by)->toBe($participant->id);
 });
 
 test('expense creation requires a name', function () {
