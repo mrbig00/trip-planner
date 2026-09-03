@@ -16,6 +16,18 @@ test('it returns the rate reported by the API', function () {
     Http::assertSent(fn ($request) => str_contains((string) $request->url(), 'base=EUR') && str_contains((string) $request->url(), 'symbols=USD'));
 });
 
+test('it fetches the rate for RON like any other currency', function () {
+    Http::fake([
+        'api.frankfurter.dev/*' => Http::response(['amount' => 1, 'base' => 'EUR', 'date' => '2026-08-28', 'rates' => ['RON' => 5.2558]]),
+    ]);
+
+    $rate = app(FetchExchangeRate::class)->fetch(Currency::EUR, Currency::RON);
+
+    expect($rate)->toBe('5.2558');
+
+    Http::assertSent(fn ($request) => str_contains((string) $request->url(), 'base=EUR') && str_contains((string) $request->url(), 'symbols=RON'));
+});
+
 test('it returns null and never throws when the same currency is requested on both sides', function () {
     Http::fake();
 
