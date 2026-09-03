@@ -513,6 +513,46 @@ test('expense owner can delete their expense', function () {
     expect(Expense::find($expense->id))->toBeNull();
 });
 
+test('the participant who added an expense on behalf of someone else can delete it', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $beneficiary->id,
+        'created_by' => $submitter->id,
+    ]);
+    $this->actingAs($submitter);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('deleteExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_deleted');
+
+    expect(Expense::find($expense->id))->toBeNull();
+});
+
+test('the expense owner it was added on behalf of can still delete it', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $beneficiary->id,
+        'created_by' => $submitter->id,
+    ]);
+    $this->actingAs($beneficiary);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('deleteExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_deleted');
+
+    expect(Expense::find($expense->id))->toBeNull();
+});
+
 test('unrelated user cannot delete an expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
@@ -575,6 +615,30 @@ test('openEditExpenseModal falls back user_id to the trip creator when the expen
     Volt::test('trips.show', ['trip' => $trip])
         ->call('openEditExpenseModal', $expense->id)
         ->assertSet('editingExpense.user_id', $owner->id);
+});
+
+test('the participant who added an expense on behalf of someone else can edit it', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $beneficiary->id,
+        'created_by' => $submitter->id,
+        'name' => 'Old Name',
+    ]);
+    $this->actingAs($submitter);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('openEditExpenseModal', $expense->id)
+        ->assertSet('showEditExpenseModal', true)
+        ->set('editingExpense.name', 'New Name')
+        ->call('saveExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_updated');
+
+    expect($expense->fresh()->name)->toBe('New Name');
 });
 
 test('unrelated user cannot start editing an expense', function () {
