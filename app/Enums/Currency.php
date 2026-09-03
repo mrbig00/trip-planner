@@ -18,6 +18,7 @@ enum Currency: string
     case EUR = 'EUR';
     case GBP = 'GBP';
     case HUF = 'HUF';
+    case RON = 'RON';
     case CHF = 'CHF';
     case JPY = 'JPY';
     case CAD = 'CAD';
@@ -53,6 +54,7 @@ enum Currency: string
             self::EUR => '€',
             self::GBP => '£',
             self::HUF => 'Ft',
+            self::RON => 'lei',
             self::CHF => 'CHF',
             self::JPY => '¥',
             self::CAD => 'CA$',
