@@ -153,6 +153,20 @@ test('a participant can add an expense on behalf of the trip creator', function 
         ->and($expense->created_by)->toBe($participant->id);
 });
 
+test('the on-behalf-of notice updates live as the owner changes', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($owner);
+
+    Volt::test('expenses.create', ['trip' => $trip])
+        ->assertDontSee('on behalf of')
+        ->set('user_id', $participant->id)
+        ->assertSee('on behalf of')
+        ->assertSee($participant->fullName());
+});
+
 test('expense creation requires a name', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);

@@ -222,7 +222,7 @@ new class extends Component {
 
             <flux:field>
                 <flux:select
-                    wire:model="user_id"
+                    wire:model.live="user_id"
                     :label="__('Owner')"
                     :placeholder="__('Select expense owner')"
                     required

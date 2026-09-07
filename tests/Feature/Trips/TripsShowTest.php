@@ -500,6 +500,25 @@ test('toggleLocationComments expands then collapses', function () {
         ->assertSet('expandedLocationId', null);
 });
 
+test('a participant sees the Add Expense control', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $this->actingAs($participant);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->assertSee('Add Expense');
+});
+
+test('an unrelated user does not see the Add Expense control', function () {
+    $trip = Trip::factory()->create();
+    $this->actingAs(User::factory()->create());
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->assertDontSee('Add Expense');
+});
+
 test('expense owner can delete their expense', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
@@ -639,6 +658,22 @@ test('the participant who added an expense on behalf of someone else can edit it
         ->assertDispatched('analytics-event', name: 'expense_updated');
 
     expect($expense->fresh()->name)->toBe('New Name');
+});
+
+test('the edit modal\'s on-behalf-of notice updates live as the owner changes', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $this->actingAs($owner);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('openEditExpenseModal', $expense->id)
+        ->assertDontSee('on behalf of')
+        ->set('editingExpense.user_id', $participant->id)
+        ->assertSee('on behalf of')
+        ->assertSee($participant->fullName());
 });
 
 test('unrelated user cannot start editing an expense', function () {

@@ -346,7 +346,7 @@
                 <flux:heading size="lg">{{ __('Expenses') }}</flux:heading>
                 <div class="flex items-center gap-2">
                     <flux:badge>{{ $trip->expenses->count() }}</flux:badge>
-                    @if ($trip->user_id === Auth::id())
+                    @if ($this->isTripMember)
                         <flux:button variant="ghost" size="sm" :href="route('expenses.create', $trip)" wire:navigate>
                             {{ __('Add Expense') }}
                         </flux:button>
@@ -1054,7 +1054,7 @@
 
             <flux:field>
                 <flux:select
-                    wire:model="editingExpense.user_id"
+                    wire:model.live="editingExpense.user_id"
                     :label="__('Owner')"
                     required
                 >
