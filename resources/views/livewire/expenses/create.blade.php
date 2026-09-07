@@ -48,6 +48,7 @@ new class extends Component {
     {
         $trip->load(['participants', 'creator']);
 
+        // Any trip member (creator or participant) can add an expense
         if ($trip->user_id !== Auth::id() && ! $trip->participants->contains(Auth::id())) {
             abort(403);
         }

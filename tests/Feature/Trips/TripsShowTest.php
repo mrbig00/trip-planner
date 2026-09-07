@@ -585,6 +585,21 @@ test('unrelated user cannot delete an expense', function () {
     expect(Expense::find($expense->id))->not->toBeNull();
 });
 
+test('a participant who did not pay can delete another member\'s expense', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id]);
+    $this->actingAs($participant);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('deleteExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_deleted');
+
+    expect(Expense::find($expense->id))->toBeNull();
+});
+
 test('openEditExpenseModal populates fields and closeEditExpenseModal clears them', function () {
     $owner = User::factory()->create();
     $trip = Trip::factory()->create(['user_id' => $owner->id]);
@@ -685,6 +700,23 @@ test('unrelated user cannot start editing an expense', function () {
     Volt::test('trips.show', ['trip' => $trip])
         ->call('openEditExpenseModal', $expense->id)
         ->assertForbidden();
+});
+
+test('a participant who did not pay can edit another member\'s expense', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $participant = User::factory()->create();
+    $trip->participants()->attach($participant->id);
+    $expense = Expense::factory()->create(['trip_id' => $trip->id, 'user_id' => $owner->id, 'name' => 'Old Name']);
+    $this->actingAs($participant);
+
+    Volt::test('trips.show', ['trip' => $trip])
+        ->call('openEditExpenseModal', $expense->id)
+        ->set('editingExpense.name', 'New Name')
+        ->call('saveExpense', $expense->id)
+        ->assertDispatched('analytics-event', name: 'expense_updated');
+
+    expect($expense->fresh()->name)->toBe('New Name');
 });
 
 test('owner can save an edited expense', function () {
