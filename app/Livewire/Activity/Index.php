@@ -42,10 +42,10 @@ class Index extends Component
         $trips = Trip::query()
             ->visibleTo(Auth::id())
             // No expenses.shares here: BuildActivityFeed never reads shares,
-            // only total/owner/updated_by/deleted_by — Trips\Show's own
-            // eager-load needs shares for its balances/cost-breakdown
+            // only total/owner/createdBy/updated_by/deleted_by — Trips\Show's
+            // own eager-load needs shares for its balances/cost-breakdown
             // features, this page doesn't share that need.
-            ->with(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'settlements'])
+            ->with(['creator', 'participants', 'locations.votes', 'locations.comments.user', 'expenses.owner', 'expenses.createdBy', 'settlements'])
             ->get();
 
         $trashedExpensesByTrip = Expense::onlyTrashed()

@@ -102,6 +102,55 @@ test('recent activity shows the amount on an added expense and adds an edited ev
     expect($edited['text'])->toContain('Hotel')->toContain('150.00');
 });
 
+test('recent activity attributes an expense added on behalf of someone else to its submitter', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $beneficiary->id,
+        'created_by' => $submitter->id,
+        'name' => 'Taxi',
+        'unit_price' => 15,
+        'quantity' => 1,
+    ]);
+
+    $this->actingAs($owner);
+    $added = Volt::test('trips.show', ['trip' => $trip])->get('recentActivity')->firstWhere('type', 'expense');
+
+    expect($added['user']->id)->toBe($submitter->id)
+        ->and($added['text'])->toContain($submitter->fullName())
+        ->toContain($beneficiary->fullName())
+        ->toContain('Taxi');
+});
+
+test('recent activity still attributes an expense to its submitter once the owner account is deleted', function () {
+    $owner = User::factory()->create();
+    $trip = Trip::factory()->create(['user_id' => $owner->id]);
+    $submitter = User::factory()->create();
+    $beneficiary = User::factory()->create();
+    $trip->participants()->attach([$submitter->id, $beneficiary->id]);
+    $expense = Expense::factory()->create([
+        'trip_id' => $trip->id,
+        'user_id' => $beneficiary->id,
+        'created_by' => $submitter->id,
+        'name' => 'Taxi',
+        'unit_price' => 15,
+        'quantity' => 1,
+    ]);
+    $beneficiary->delete();
+
+    $this->actingAs($owner);
+    $added = Volt::test('trips.show', ['trip' => $trip])->get('recentActivity')->firstWhere('type', 'expense');
+
+    expect($expense->fresh()->user_id)->toBeNull()
+        ->and($added['user']->id)->toBe($submitter->id)
+        ->and($added['text'])->toContain($submitter->fullName())
+        ->toContain('Taxi');
+});
+
 test('recent activity shows a deleted-expense event attributed to whoever deleted it', function () {
     $owner = User::factory()->create();
     $participant = User::factory()->create();

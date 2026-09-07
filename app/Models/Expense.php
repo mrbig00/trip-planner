@@ -31,6 +31,7 @@ class Expense extends Model
         'quantity',
         'trip_id',
         'user_id',
+        'created_by',
         'updated_by',
         'deleted_by',
         'split_type',
@@ -77,6 +78,17 @@ class Expense extends Model
     public function shares(): HasMany
     {
         return $this->hasMany(ExpenseShare::class);
+    }
+
+    /**
+     * Get the user who actually submitted this expense, if recorded. May
+     * differ from owner() — a trip member can add an expense on behalf of
+     * another member, in which case this is the submitter and owner() is who
+     * it was recorded for. Null for expenses created before this was tracked.
+     */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**

@@ -48,7 +48,7 @@ class BuildActivityFeed
      * actually recorded (it always is going forward, via saveExpense/deleteExpense).
      *
      * Requires `locations.votes`, `locations.comments.user`, `expenses.owner`,
-     * and `settlements` to be eager-loaded on the trip. Deleted expenses are
+     * `expenses.createdBy`, and `settlements` to be eager-loaded on the trip. Deleted expenses are
      * excluded from the eager-loaded `expenses` relation by default (soft
      * deletes), so they're queried separately — pass $trashedExpenses when
      * building feeds for several trips at once (e.g. the global Activity
@@ -96,13 +96,23 @@ class BuildActivityFeed
         foreach ($trip->expenses as $expense) {
             $amount = Money::formatDecimal((string) $expense->total, $expense->currency ?? $trip->currency ?? Currency::default());
 
+            // created_by is only set going forward (see expenses.create); a
+            // null value means either it predates tracking or the submitter
+            // was also the owner, so both fall back to the owner-only text.
+            // Either side can also be null on its own if that user's account
+            // was since deleted (user_id/created_by both nullOnDelete).
+            $submitter = $expense->createdBy;
+            $owner = $expense->owner;
             $events->push([
                 'type' => 'expense',
                 'at' => $expense->created_at,
-                'user' => $expense->owner,
-                'text' => $expense->owner
-                    ? __(':user added expense :expense (:amount)', ['user' => $expense->owner->fullName(), 'expense' => $expense->name, 'amount' => $amount])
-                    : __('Expense added: :expense (:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                'user' => $submitter ?? $owner,
+                'text' => match (true) {
+                    $submitter && $owner && $submitter->isNot($owner) => __(':user added expense :expense for :owner (:amount)', ['user' => $submitter->fullName(), 'owner' => $owner->fullName(), 'expense' => $expense->name, 'amount' => $amount]),
+                    (bool) $submitter => __(':user added expense :expense (:amount)', ['user' => $submitter->fullName(), 'expense' => $expense->name, 'amount' => $amount]),
+                    (bool) $owner => __(':user added expense :expense (:amount)', ['user' => $owner->fullName(), 'expense' => $expense->name, 'amount' => $amount]),
+                    default => __('Expense added: :expense (:amount)', ['expense' => $expense->name, 'amount' => $amount]),
+                },
             ]);
 
             // updated_by is only ever set by saveExpense(), never on creation,

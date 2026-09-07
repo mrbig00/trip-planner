@@ -99,7 +99,7 @@ class Show extends Component
     private const TRIP_RELATIONS = [
         'creator', 'participants',
         'locations.votes', 'locations.comments.user',
-        'expenses.owner', 'expenses.shares',
+        'expenses.owner', 'expenses.createdBy', 'expenses.shares',
         'settlements',
         'documents.uploader',
     ];
@@ -575,10 +575,7 @@ class Show extends Component
     {
         $expense = $this->trip->expenses()->findOrFail($expenseId);
 
-        // Only expense owner or trip creator can delete
-        if ($expense->user_id !== Auth::id() && $this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureCanManageExpense($expense);
 
         $expense->update(['deleted_by' => Auth::id()]);
         $expense->delete();
@@ -595,10 +592,7 @@ class Show extends Component
     {
         $expense = $this->trip->expenses()->with('shares')->findOrFail($expenseId);
 
-        // Only expense owner or trip creator can edit
-        if ($expense->user_id !== Auth::id() && $this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureCanManageExpense($expense);
 
         $this->resetValidation();
         $this->editingExpenseId = $expenseId;
@@ -667,10 +661,7 @@ class Show extends Component
     {
         $expense = $this->trip->expenses()->findOrFail($expenseId);
 
-        // Only expense owner or trip creator can update
-        if ($expense->user_id !== Auth::id() && $this->trip->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $this->ensureCanManageExpense($expense);
 
         $eligibleUserIds = $this->trip->members()->pluck('id')->all();
 
@@ -919,6 +910,32 @@ class Show extends Component
         }
 
         return $document->user_id === Auth::id() && $this->isTripMember;
+    }
+
+    /**
+     * Whether the current user can edit/delete the given expense: the trip
+     * creator always can; otherwise its owner (who it was recorded for) or
+     * whoever actually submitted it (created_by — set when a member adds an
+     * expense on behalf of someone else). created_by is null on expenses
+     * created before it was tracked, so it never grants access on its own
+     * there. Single source of truth behind ensureCanManageExpense() (for
+     * actions) and the per-expense edit/delete buttons in the view.
+     */
+    public function canManageExpense(Expense $expense): bool
+    {
+        return $this->trip->user_id === Auth::id()
+            || $expense->user_id === Auth::id()
+            || $expense->created_by === Auth::id();
+    }
+
+    /**
+     * Abort with a 403 unless the current user can manage the given expense.
+     */
+    private function ensureCanManageExpense(Expense $expense): void
+    {
+        if (! $this->canManageExpense($expense)) {
+            abort(403);
+        }
     }
 
     /**

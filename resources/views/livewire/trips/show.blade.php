@@ -346,7 +346,7 @@
                 <flux:heading size="lg">{{ __('Expenses') }}</flux:heading>
                 <div class="flex items-center gap-2">
                     <flux:badge>{{ $trip->expenses->count() }}</flux:badge>
-                    @if ($trip->user_id === Auth::id())
+                    @if ($this->isTripMember)
                         <flux:button variant="ghost" size="sm" :href="route('expenses.create', $trip)" wire:navigate>
                             {{ __('Add Expense') }}
                         </flux:button>
@@ -388,7 +388,7 @@
                             @foreach ($trip->expenses as $expense)
                                 <tr wire:key="expense-{{ $expense->id }}" class="border-b border-neutral-700/50 hover:bg-neutral-800/30 transition-colors">
                                     @php
-                                        $canEditExpense = $expense->user_id === Auth::id() || $trip->user_id === Auth::id();
+                                        $canEditExpense = $this->canManageExpense($expense);
                                     @endphp
                                     <td class="px-4 py-3">
                                         <flux:text class="font-medium">{{ $expense->name }}</flux:text>
@@ -428,6 +428,11 @@
                                                 />
                                                 <flux:text class="text-sm">{{ $expense->owner->fullName() }}</flux:text>
                                             </div>
+                                            @if ($expense->createdBy && $expense->created_by !== $expense->user_id)
+                                                <flux:text class="text-xs text-neutral-500 mt-0.5">
+                                                    {{ __('Added by :name', ['name' => $expense->createdBy->fullName()]) }}
+                                                </flux:text>
+                                            @endif
                                         @else
                                             <flux:text class="text-sm text-neutral-500">—</flux:text>
                                         @endif
@@ -1049,7 +1054,7 @@
 
             <flux:field>
                 <flux:select
-                    wire:model="editingExpense.user_id"
+                    wire:model.live="editingExpense.user_id"
                     :label="__('Owner')"
                     required
                 >
@@ -1058,6 +1063,11 @@
                         <option value="{{ $participant->id }}">{{ $participant->fullName() }}</option>
                     @endforeach
                 </flux:select>
+                @if (($editingExpense['user_id'] ?? null) && $editingExpense['user_id'] !== Auth::id())
+                    <flux:text class="text-sm text-neutral-400 mt-1">
+                        {{ __("You're editing this expense on behalf of :name.", ['name' => $trip->members()->firstWhere('id', $editingExpense['user_id'])?->fullName()]) }}
+                    </flux:text>
+                @endif
             </flux:field>
 
             <flux:separator />
