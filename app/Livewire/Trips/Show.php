@@ -913,19 +913,14 @@ class Show extends Component
     }
 
     /**
-     * Whether the current user can edit/delete the given expense: the trip
-     * creator always can; otherwise its owner (who it was recorded for) or
-     * whoever actually submitted it (created_by — set when a member adds an
-     * expense on behalf of someone else). created_by is null on expenses
-     * created before it was tracked, so it never grants access on its own
-     * there. Single source of truth behind ensureCanManageExpense() (for
-     * actions) and the per-expense edit/delete buttons in the view.
+     * Whether the current user can edit/delete the given expense: any trip
+     * member (creator or participant) can manage any expense on the trip.
+     * Single source of truth behind ensureCanManageExpense() (for actions)
+     * and the per-expense edit/delete buttons in the view.
      */
     public function canManageExpense(Expense $expense): bool
     {
-        return $this->trip->user_id === Auth::id()
-            || $expense->user_id === Auth::id()
-            || $expense->created_by === Auth::id();
+        return $this->isTripMember;
     }
 
     /**
