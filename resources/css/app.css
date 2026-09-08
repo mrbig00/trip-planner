@@ -43,6 +43,18 @@
     --color-money-3: #5598e7;
     --color-money-4: #2a78d6;
     --color-money-5: #1c5cab;
+
+    /* Per-trip identity on the global Explore map — cycles via
+       App\Support\TripPalette::slotFor(). A separate palette from
+       --color-participant-* (per-person within one trip): the two never
+       render side by side, but trip-1/2/3/5/7 intentionally reuse those hues
+       for family resemblance; --color-trip-4 is the one new hue. */
+    --color-trip-1: #2a78d6; /* blue */
+    --color-trip-2: #eb6834; /* orange */
+    --color-trip-3: #1baf7a; /* aqua */
+    --color-trip-4: #c98a12; /* amber */
+    --color-trip-5: #e87ba4; /* magenta */
+    --color-trip-6: #4a3aa7; /* violet */
 }
 
 @layer theme {
@@ -56,6 +68,48 @@
         --color-participant-3: #199e70;
         --color-participant-5: #d55181;
         --color-participant-7: #9085e9;
+
+        --color-trip-1: #3987e5;
+        --color-trip-2: #d95926;
+        --color-trip-3: #199e70;
+        --color-trip-4: #e0b429;
+        --color-trip-5: #d55181;
+        --color-trip-6: #9085e9;
+    }
+}
+
+@layer components {
+    /*
+     * Responsive frame for the server-rendered OSM tile-grid maps
+     * (locations-map-widget): the tile grid and pins inside are laid out in
+     * fixed pixel coordinates, so on browsers that support container query
+     * units this scales that fixed-size content down to fit its container
+     * instead of overflowing it. Browsers without support fall back to the
+     * original fixed-size, horizontally-scrollable box.
+     */
+    .map-frame {
+        position: relative;
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .map-frame-inner {
+        position: relative;
+    }
+
+    @supports (container-type: inline-size) {
+        .map-frame {
+            container-type: inline-size;
+            overflow: hidden;
+        }
+
+        .map-frame-inner {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform: scale(min(1, calc(100cqw / var(--map-frame-width))));
+            transform-origin: top left;
+        }
     }
 }
 

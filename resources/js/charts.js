@@ -79,6 +79,12 @@ document.addEventListener('alpine:init', () => {
         chart: null,
 
         init() {
+            // The gap this draws between segments needs to match whatever's
+            // behind the canvas to read as a cut, not a ring — the page body
+            // (bg-white / dark:bg-zinc-800, see app.blade.php), since the
+            // card itself has no background of its own.
+            const segmentGap = document.documentElement.classList.contains('dark') ? tooltipBackground : '#ffffff';
+
             this.chart = new Chart(this.$refs.canvas, {
                 type: 'doughnut',
                 data: {
@@ -86,7 +92,7 @@ document.addEventListener('alpine:init', () => {
                     datasets: [{
                         data,
                         backgroundColor: colors,
-                        borderColor: tooltipBackground,
+                        borderColor: segmentGap,
                         borderWidth: 2,
                     }],
                 },
